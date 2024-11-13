@@ -3,7 +3,7 @@
 
 // Initializing communications
 void setup() {
-  FromPi.begin();
+  SerialIO::begin();
 }
 
 // Initialize peripherals
@@ -13,14 +13,10 @@ void setup1() {
 
 // Communications loop managing incomings & outgoings
 void loop() {
-  Serial.print("Thread 0\n");
-
-  if (FromPi.hasCommand()) {
-
+  if (SerialIO::hasCommand()) {
   }
 }
 
 // Timings loop managing realtime signals such as bit-banged PWM
 void loop1() {
-  Serial.print("Thread 1\n");
 }
