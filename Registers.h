@@ -3,10 +3,13 @@
 
 #include <atomic>
 
+using namespace std;
+
 struct States {
-  atomic_bool[4] enable;
-  atomic_bool[4] interrupt;
-  atomic_int32_t[4] steps;
+  atomic_bool interrupt[4];
+  atomic_int32_t steps[4];
 };
+
+static States Registers;
 
 #endif
