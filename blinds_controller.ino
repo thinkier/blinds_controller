@@ -39,4 +39,27 @@ void loop() {
 
 // Timings loop managing realtime signals such as bit-banged PWM
 void loop1() {
+  for (uint8_t i = 0; i < 4; i++) {
+    unsigned long time = micros();
+
+    bool interrupted = digitalRead(PIN_INT[i]);
+    int32_t steps = Registers.steps[i];
+
+    digitalWrite(PIN_ENA[i], Registers.enable[i]);
+    if (steps == 0) {
+    } else if (interrupted) {
+      Registers.interrupt[i] = true;
+    } else {
+      digitalWrite(PIN_DIR[i], steps < 0);
+      if (steps > 0) {
+        Registers.steps[i] -= 1;
+      } else {
+        Registers.steps[i] += 1;
+      }
+      digitalWrite(PIN_STP[i], HIGH);
+    }
+
+    delayMicroseconds(time + 50 - micros()); // Synthetic cap of 5000 oscillations per channel-second
+    digitalWrite(PIN_STP[i], LOW);
+  }
 }
