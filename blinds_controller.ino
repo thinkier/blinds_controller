@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "SerialIO.h"
+#include "Commander.h"
 #include "Registers.h"
 
 // X Z Y E
@@ -10,29 +10,31 @@ uint8_t PIN_DIR[4] =  {10, 28, 5, 13};
 
 uint8_t PIN_NEOPIXEL = 24;
 
+Commander Controller(Serial);
+
 // Initializing communications
 void setup() {
-  SerialIO::begin();
+  Serial.begin(115200);
+  Controller.begin();
 }
 
 // Initialize peripherals
 void setup1() {
-  Serial.begin(115200);
 }
 
 // Communications loop managing incomings & outgoings
 void loop() {
-  if (SerialIO::hasCommand()) {
-    Command cmd = SerialIO::readCommand();
+  if (Controller.hasCommand()) {
+    Command cmd = Controller.readCommand();
 
     if (cmd.action == "CLEAR") {
       for (uint8_t i = 0; i < 4; i++) {
         Registers.interrupt[i] = false;
         Registers.steps[i] = 0;
       }
-      SerialIO::writeResponse("OK");
+      Controller.writeResponse("OK");
     } else {
-      SerialIO::writeResponse("UNKNOWN");
+      Controller.writeResponse("UNKNOWN");
     }
   }
 }
@@ -42,19 +44,20 @@ void loop1() {
   for (uint8_t i = 0; i < 4; i++) {
     unsigned long time = micros();
 
+    bool enable = Registers.enable[i];
     bool interrupted = digitalRead(PIN_INT[i]);
     int32_t steps = Registers.steps[i];
 
-    digitalWrite(PIN_ENA[i], Registers.enable[i]);
+    digitalWrite(PIN_ENA[i], !enable);
     if (steps == 0) {
     } else if (interrupted) {
       Registers.interrupt[i] = true;
-    } else {
+    } else if (enable) {
       digitalWrite(PIN_DIR[i], steps < 0);
       if (steps > 0) {
-        Registers.steps[i] -= 1;
+        Registers.steps[i]--;
       } else {
-        Registers.steps[i] += 1;
+        Registers.steps[i]++;
       }
       digitalWrite(PIN_STP[i], HIGH);
     }
