@@ -5,15 +5,13 @@ mod board;
 mod config;
 
 use crate::board::get_driver_serial;
-use cortex_m::prelude::_embedded_hal_blocking_serial_Write;
 use defmt::*;
-use embassy_embedded_hal;
 use embassy_executor::Spawner;
 use embassy_rp::gpio;
 use embassy_time::{Duration, Instant, Timer};
 use gpio::{Level, Output};
-use tmc2209::reg::CHOPCONF;
-use tmc2209::{send_write_request};
+use tmc2209::reg::{CHOPCONF, GCONF};
+use tmc2209::{await_read_response, send_read_request, send_write_request};
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
@@ -24,9 +22,18 @@ async fn main(_spawner: Spawner) {
 
     {
         let mut driver_serial = get_driver_serial(&mut p);
+
+        let mut gconf = GCONF::default();
+        gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
+        chop.set_intpol(true);
         chop.set_vsense(false); // Essential for using the 0R11 external sense resistors on the board, which will program the driver to run at approximately ~1.7A
+        chop.set_mres(0b0111); // Half step mode
+
         for addr in 0..4 {
+            if let Err(e) = send_write_request(addr, gconf, &mut driver_serial) {
+                info!("Failed to program GCONF on addr {}: {:?}", addr, e);
+            }
             if let Err(e) = send_write_request(addr, chop, &mut driver_serial) {
                 info!("Failed to program CHOPCONF on addr {}: {:?}", addr, e);
             }
@@ -41,7 +48,7 @@ async fn main(_spawner: Spawner) {
     let mut counter = 0;
     let mut start = Instant::now();
     loop {
-        let period = Timer::after_micros(50);
+        let period = Timer::after_micros(333);
 
         step.set_high();
         Timer::after_nanos(125).await; // $t_{sh}$ as per datasheet
