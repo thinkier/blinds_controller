@@ -26,7 +26,6 @@ async fn main(_spawner: Spawner) {
         let mut gconf = GCONF::default();
         gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
-        chop.set_intpol(true);
         chop.set_vsense(false); // Essential for using the 0R11 external sense resistors on the board, which will program the driver to run at approximately ~1.7A
         chop.set_mres(0b0111); // Half step mode
 
