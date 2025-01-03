@@ -22,7 +22,7 @@ async fn main1(mut driver: [DriverPins<'static>; 4]) {
     let mut counter = 0;
     let mut start = Instant::now();
     loop {
-        let period = Timer::after_micros(500); // Actual ~= 1500 half-steps per second
+        let period = Timer::after_micros(400); // Actual ~= 1625 half-steps per second
 
         driver[3].step.set_high();
         Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
