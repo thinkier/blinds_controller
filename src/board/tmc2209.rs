@@ -11,7 +11,7 @@ where
     <D as Read<u8>>::Error: Format,
     <D as Write<u8>>::Error: Format,
 {
-    pub fn configure_drivers(&mut self) {
+    pub fn configure_driver(&mut self) {
         let mut gconf = GCONF::default();
         gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
@@ -20,7 +20,7 @@ where
         let mut current = IHOLD_IRUN::default();
         current.set_ihold(0b10000); // 1/2 of the max current
 
-        for addr in 0..4 {
+        for addr in 0..N as u8 {
             if let Err(e) = send_write_request(addr, gconf, &mut self.driver_serial) {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
             }

@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-btt_skr_pico_v1_0 = ["tmc2209"]
 default = ["btt_skr_pico_v1_0"]
+driver_tmc2209 = ["tmc2209", "configurable_driver"]
+btt_skr_pico_v1_0 = ["driver_tmc2209"]
+configurable_driver = []
 
 [dependencies]
 cortex-m = "0.7"
@@ -22,6 +24,10 @@ embassy-rp = { version = "0.2", features = ["defmt", "time-driver", "critical-se
 embedded-hal = "0.2"
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 tmc2209 = { version = "^0.2", optional = true }
+
+static_cell = "2"
+portable-atomic = { version = "1.10", features = ["critical-section"] }
+heapless = "0.8"
 
 [profile.release]
 lto = true
