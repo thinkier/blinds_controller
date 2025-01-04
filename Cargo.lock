@@ -101,10 +101,12 @@ dependencies = [
  "embassy-executor",
  "embassy-rp",
  "embassy-time",
- "embedded-hal 0.2.7",
- "heapless",
+ "embedded-hal 1.0.0",
+ "embedded-io",
  "panic-probe",
  "portable-atomic",
+ "serde",
+ "serde-json-core",
  "static_cell",
  "tmc2209",
 ]
@@ -112,9 +114,10 @@ dependencies = [
 [[package]]
 name = "blinds_sequencer"
 version = "0.2.0"
-source = "git+https://github.com/thinkier/blinds_sequencer#de8ca54be23a0cfa9392f0a1b31b9791f19fb198"
+source = "git+https://github.com/thinkier/blinds_sequencer#45ad5dbb67121db3e28e9d197003f11ac35ed183"
 dependencies = [
  "heapless",
+ "serde",
 ]
 
 [[package]]
@@ -174,7 +177,7 @@ checksum = "e37549a379a9e0e6e576fd208ee60394ccb8be963889eebba3ffe0980364f472"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -219,7 +222,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -230,7 +233,7 @@ checksum = "d336a2a514f6ccccaa3e09b02d41d35330c07ddf03a62165fcec10bb561c7806"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -259,7 +262,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -364,7 +367,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -519,6 +522,9 @@ name = "embedded-io"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+dependencies = [
+ "defmt",
+]
 
 [[package]]
 name = "embedded-io-async"
@@ -656,6 +662,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
  "hash32",
+ "serde",
  "stable_deref_trait",
 ]
 
@@ -1000,7 +1007,7 @@ dependencies = [
  "proc-macro-error-attr2",
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -1117,6 +1124,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7c45b9784283f1b2e7fb61b42047c2fd678ef0960d4f6f1eba131594cc369d4"
 
 [[package]]
+name = "ryu"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1136,6 +1149,37 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "serde"
+version = "1.0.217"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02fc4265df13d6fa1d00ecff087228cc0a2b5f3c0e87e258d8b94a156e984c70"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde-json-core"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b81787e655bd59cecadc91f7b6b8651330b2be6c33246039a65e5cd6f4e0828"
+dependencies = [
+ "heapless",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.217"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a9bf7cf98d04a2b28aead066b7496853d4779c9cc183c440dbac457641e19a0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.94",
+]
 
 [[package]]
 name = "siphasher"
@@ -1196,9 +1240,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.93"
+version = "2.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c786062daee0d6db1132800e623df74274a0a87322d8e183338e01b3d98d058"
+checksum = "987bc0be1cdea8b10216bd06e2ca407d40b9543468fafd3ddfb02f36e77f71f3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1251,7 +1295,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -1262,7 +1306,7 @@ checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.93",
+ "syn 2.0.94",
 ]
 
 [[package]]
@@ -1277,11 +1321,11 @@ dependencies = [
 [[package]]
 name = "tmc2209"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2552dbf5901e37abcd381f930731432d2c952245fe277eadcf3e03ac438a2783"
+source = "git+https://github.com/mitchmindtree/tmc2209#5c94959094a44b4173a7db6b3270eed0b574f512"
 dependencies = [
  "bitfield",
- "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0",
+ "embedded-io",
 ]
 
 [[package]]

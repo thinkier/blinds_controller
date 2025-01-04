@@ -20,8 +20,26 @@ impl DriverPins<'_> {
     }
 }
 
+pub struct SerialBuffers {
+    driver_tx_buf: [u8; 16],
+    driver_rx_buf: [u8; 16],
+    host_tx_buf: [u8; 256],
+    host_rx_buf: [u8; 256],
+}
+
+impl SerialBuffers {
+    pub(crate) const fn default() -> Self {
+        Self {
+            driver_tx_buf: [0; 16],
+            driver_rx_buf: [0; 16],
+            host_tx_buf: [0; 256],
+            host_rx_buf: [0; 256],
+        }
+    }
+}
+
 pub struct Board<'a, const N: usize, D, H> {
     pub driver: [DriverPins<'a>; N],
     pub driver_serial: D,
-    pub host_serial: H,
+    pub host_serial: H
 }

@@ -2,6 +2,8 @@
 #![no_main]
 
 mod board;
+mod comms;
+
 use crate::board::*;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
@@ -43,13 +45,20 @@ async fn main1(mut driver: [DriverPins<'static>; 4]) {
 }
 
 static PERIPH: StaticCell<Peripherals> = StaticCell::new();
+static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
 
 #[embassy_executor::main]
 async fn main0(_spawner: Spawner) {
     // Initialise Peripherals
     info!("Initialising Peripherals");
     let p = PERIPH.init(embassy_rp::init(Default::default()));
-    let mut board = Board::init(p);
+
+    // Once again, a single-purpose buffer that should not be allocated at runtime, so
+    // it is allocated as a static mutable reference (unsafe)
+    #[allow(static_mut_refs)]
+    let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
+
+    let mut board = Board::init(p, serial_buffers);
     #[cfg(feature = "configurable_driver")]
     {
         board.configure_driver();

@@ -21,13 +21,16 @@ embassy-executor = { version = "0.6", features = ["arch-cortex-m", "executor-thr
 embassy-time = { version = "0.3", features = ["defmt", "defmt-timestamp-uptime"] }
 embassy-rp = { version = "0.2", features = ["defmt", "time-driver", "critical-section-impl"] }
 
-embedded-hal = "0.2"
+embedded-hal = "1"
+embedded-io = { version = "0.6", features = ["defmt-03"] }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
-tmc2209 = { version = "^0.2", optional = true }
+tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
 static_cell = "2"
-portable-atomic = { version = "1.10", features = ["critical-section"] }
-heapless = "0.8"
+portable-atomic = { version = "1.10", features = ["critical-section"] }#
+
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde-json-core = "0.6"
 
 [profile.release]
 lto = true
