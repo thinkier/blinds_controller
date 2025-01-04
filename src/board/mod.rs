@@ -41,5 +41,5 @@ impl SerialBuffers {
 pub struct Board<'a, const N: usize, D, H> {
     pub driver: [DriverPins<'a>; N],
     pub driver_serial: D,
-    pub host_serial: H
+    pub host_serial: H,
 }
