@@ -1,3 +1,3 @@
 mod rpc;
 
-pub use rpc::Request;
+pub use rpc::*;

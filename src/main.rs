@@ -5,6 +5,7 @@ mod board;
 mod comms;
 
 use crate::board::*;
+use crate::comms::RpcHandle;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
@@ -81,5 +82,13 @@ async fn main0(_spawner: Spawner) {
             let core1_executor = CORE1_EXECUTOR.init(Executor::new());
             core1_executor.run(|spawner| spawner.spawn(main1(board.driver)).unwrap())
         });
+    }
+
+    let mut rpc = RpcHandle::<256, _>::new(board.host_serial);
+
+    loop {
+        if let Ok(Some(packet)) = rpc.read() {
+            // TODO Handle the packet
+        }
     }
 }

@@ -1,8 +1,9 @@
 use blinds_sequencer::WindowDressingState;
+use defmt::*;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
 
-pub struct RpcBuffer<const N: usize, IO> {
+pub struct RpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
     pub serial: IO,
 }
@@ -26,7 +27,7 @@ impl<E: embedded_io::Error> From<ReadExactError<E>> for RpcError<E> {
     }
 }
 
-impl<const N: usize, IO> RpcBuffer<N, IO>
+impl<const N: usize, IO> RpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
 {
@@ -37,7 +38,7 @@ where
         }
     }
 
-    pub fn read(&mut self) -> Result<Option<Request>, RpcError<IO::Error>> {
+    pub fn read(&mut self) -> Result<Option<RpcPacket>, RpcError<IO::Error>> {
         if self.serial.read_ready()? == false {
             return Ok(None);
         }
@@ -46,14 +47,14 @@ where
         self.serial.read(&mut len_buf)?;
         let len = len_buf[0] as usize;
         self.serial.read_exact(&mut self.packet_buf[0..len])?;
-        Ok(Some(
-            serde_json_core::from_slice(&mut self.packet_buf[0..len])
-                .map_err(|e| RpcError::ParseError(e))?
-                .0,
-        ))
+        let packet = serde_json_core::from_slice(&mut self.packet_buf[0..len])
+            .map_err(|e| RpcError::ParseError(e))?
+            .0;
+
+        Ok(Some(packet))
     }
 
-    pub fn write(&mut self, resp: &Response) -> Result<(), RpcError<IO::Error>> {
+    pub fn write(&mut self, resp: &RpcPacket) -> Result<(), RpcError<IO::Error>> {
         let packet = serde_json_core::to_slice(resp, &mut self.packet_buf)
             .map_err(|e| RpcError::EncodeError(e))?;
         self.serial.write_all(&self.packet_buf[0..packet])?;
@@ -63,23 +64,17 @@ where
 }
 
 #[derive(Deserialize, Serialize)]
-pub enum Request {
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum RpcPacket {
     Home {
         channel: u8,
     },
-    SetPosition {
+    Position {
         channel: u8,
         state: WindowDressingState,
     },
     GetPosition {
         channel: u8,
-    },
-}
-
-#[derive(Serialize)]
-pub enum Response {
-    Position {
-        channel: u8,
-        state: WindowDressingState,
     },
 }
