@@ -108,8 +108,7 @@ async fn main0(_spawner: Spawner) {
                     seq[channel as usize] =
                         HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
 
-                    seq[channel as usize].current_state = init;
-                    seq[channel as usize].desired_state = init;
+                    seq[channel as usize].load_state(&init);
                 }
                 RpcPacket::Position { channel, state } => {
                     seq[channel as usize].set_state(&state);
@@ -117,7 +116,7 @@ async fn main0(_spawner: Spawner) {
                 RpcPacket::GetPosition { channel } => {
                     if let Err(e) = rpc.write(&RpcPacket::Position {
                         channel,
-                        state: seq[channel as usize].current_state,
+                        state: *seq[channel as usize].get_current_state(),
                     }) {
                         error!("Failed to write Position: {:?}", e);
                     }
