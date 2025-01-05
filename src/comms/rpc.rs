@@ -27,6 +27,17 @@ impl<E: embedded_io::Error> From<ReadExactError<E>> for RpcError<E> {
     }
 }
 
+impl<E: embedded_io::Error + Format> Format for RpcError<E> {
+    fn format(&self, fmt: Formatter) {
+        match self {
+            RpcError::IoError(e) => defmt::write!(fmt, "IoError({:?})", e),
+            RpcError::IoReadExactError(e) => defmt::write!(fmt, "IoReadExactError({:?})", e),
+            RpcError::ParseError(e) => defmt::write!(fmt, "ParseError({:?})", e),
+            RpcError::EncodeError(e) => defmt::write!(fmt, "EncodeError({:?})", e),
+        }
+    }
+}
+
 impl<const N: usize, IO> RpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
@@ -69,6 +80,12 @@ where
 pub enum RpcPacket {
     Home {
         channel: u8,
+    },
+    Setup {
+        channel: u8,
+        init: WindowDressingState,
+        full_cycle_steps: u32,
+        full_tilt_steps: Option<u32>,
     },
     Position {
         channel: u8,

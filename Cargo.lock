@@ -113,8 +113,8 @@ dependencies = [
 
 [[package]]
 name = "blinds_sequencer"
-version = "0.2.0"
-source = "git+https://github.com/thinkier/blinds_sequencer#45ad5dbb67121db3e28e9d197003f11ac35ed183"
+version = "0.3.0"
+source = "git+https://github.com/thinkier/blinds_sequencer#5a272efaf55a70e54c2bdccfa6ec0ca14ceec177"
 dependencies = [
  "heapless",
  "serde",
@@ -661,6 +661,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
+ "defmt",
  "hash32",
  "serde",
  "stable_deref_trait",
@@ -1165,6 +1166,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b81787e655bd59cecadc91f7b6b8651330b2be6c33246039a65e5cd6f4e0828"
 dependencies = [
+ "defmt",
  "heapless",
  "ryu",
  "serde",

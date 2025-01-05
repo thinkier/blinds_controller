@@ -27,10 +27,10 @@ blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
 static_cell = "2"
-portable-atomic = { version = "1.10", features = ["critical-section"] }#
+portable-atomic = { version = "1.10", features = ["critical-section"] }
 
 serde = { version = "1", default-features = false, features = ["derive"] }
-serde-json-core = "0.6"
+serde-json-core = { version = "0.6", features = ["defmt"] }
 
 [profile.release]
 lto = true

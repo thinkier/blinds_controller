@@ -5,7 +5,8 @@ mod board;
 mod comms;
 
 use crate::board::*;
-use crate::comms::RpcHandle;
+use crate::comms::{RpcHandle, RpcPacket};
+use blinds_sequencer::{HaltingSequencer, SensingWindowDressingSequencer, WindowDressingSequencer};
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
@@ -86,9 +87,48 @@ async fn main0(_spawner: Spawner) {
 
     let mut rpc = RpcHandle::<256, _>::new(board.host_serial);
 
+    let mut seq = [
+        HaltingSequencer::new_roller(100_000),
+        HaltingSequencer::new_roller(100_000),
+        HaltingSequencer::new_roller(100_000),
+        HaltingSequencer::new_roller(100_000),
+    ];
     loop {
-        if let Ok(Some(packet)) = rpc.read() {
-            // TODO Handle the packet
+        match rpc.read() {
+            Ok(Some(packet)) => match packet {
+                RpcPacket::Home { channel } => {
+                    seq[channel as usize].home_fully_opened();
+                }
+                RpcPacket::Setup {
+                    channel,
+                    init,
+                    full_cycle_steps,
+                    full_tilt_steps,
+                } => {
+                    seq[channel as usize] =
+                        HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
+
+                    seq[channel as usize].current_state = init;
+                    seq[channel as usize].desired_state = init;
+                }
+                RpcPacket::Position { channel, state } => {
+                    seq[channel as usize].set_state(&state);
+                }
+                RpcPacket::GetPosition { channel } => {
+                    if let Err(e) = rpc.write(&RpcPacket::Position {
+                        channel,
+                        state: seq[channel as usize].current_state,
+                    }) {
+                        error!("Failed to write Position: {:?}", e);
+                    }
+                }
+            },
+            Ok(None) => {
+                Timer::after_millis(10).await;
+            }
+            Err(e) => {
+                error!("Failed to read from host serial: {:?}", e);
+            }
         }
     }
 }
