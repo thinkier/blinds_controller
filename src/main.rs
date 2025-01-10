@@ -41,10 +41,8 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
         all_pins(&mut chs, |ch| {
             dir_hold(ch, instr.as_ref().map(|i| i.quality));
-        });
-        Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
-        stp_rise(&mut chs[3], &mut instr);
-        all_pins(&mut chs, |ch| {
+            // Realistically though, that's 3 CPU cycles, I think we're okay...
+            // Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
             stp_rise(ch, &mut instr);
         });
         Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
