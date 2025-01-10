@@ -6,13 +6,15 @@ mod comms;
 mod driver;
 
 use crate::board::*;
-use crate::comms::{RpcHandle, RpcPacket};
-use crate::driver::{all_pins, dir_hold, stp_fall, stp_rise};
+use crate::comms::{LookAheadBuffer, RpcHandle, RpcPacket};
+use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
 };
+use core::cell::RefCell;
 use core::sync::atomic::Ordering;
+use critical_section::Mutex;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
@@ -20,38 +22,56 @@ use embassy_rp::peripherals::CORE1;
 use embassy_rp::Peripherals;
 use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::AtomicU8;
-use static_cell::StaticCell;
+use serde_json_core::heapless::spsc::{Consumer, Producer, Queue};
+use static_cell::{ConstStaticCell, StaticCell};
 use {defmt_rtt as _, panic_probe as _};
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<16384> = Stack::new();
 
-static REVERSE_POLARITY: AtomicU8 = AtomicU8::new(0);
+static REVERSALS: AtomicU8 = AtomicU8::new(0);
+static LOOK_AHEAD_BUFFER: Mutex<RefCell<LookAheadBuffer<WindowDressingInstruction, DRIVERS>>> =
+    Mutex::new(RefCell::new(LookAheadBuffer::new()));
 
 const DRIVERS: usize = 4;
 
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
 async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
+    let mut cuf_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
     loop {
         let period = Timer::after_micros(400); // Actual ~= 1625 half-steps per second
 
-        let mut instr: Option<WindowDressingInstruction> = None;
-        let pol = REVERSE_POLARITY.load(Ordering::Relaxed);
+        let reversal = REVERSALS.load(Ordering::Relaxed);
+        for i in 0..DRIVERS {
+            if cuf_buf[i].is_none() {
+                cuf_buf[i] =
+                    critical_section::with(|cs| LOOK_AHEAD_BUFFER.borrow_ref_mut(cs).take(i));
+                cuf_buf[i].iter_mut().for_each(|instr| {
+                    if (reversal >> i) & 1 != 0 {
+                        instr.quality = instr.quality.reverse();
+                    }
+                });
+            }
+        }
 
-        all_pins(&mut chs, |ch| {
-            dir_hold(ch, instr.as_ref().map(|i| i.quality));
-            // Realistically though, that's 3 CPU cycles, I think we're okay...
-            // Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
-            stp_rise(ch, &mut instr);
+        period.await;
+
+        chs.iter_mut().enumerate().for_each(|(i, ch)| {
+            dir_hold(ch, cuf_buf[i].as_ref().map(|i| i.quality));
+        });
+        // Realistically though, that's 3 CPU cycles...
+        Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
+
+        chs.iter_mut().enumerate().for_each(|(i, ch)| {
+            stp_rise(ch, &mut cuf_buf[i]);
         });
         Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
-        all_pins(&mut chs, |ch| {
+
+        chs.iter_mut().for_each(|ch| {
             stp_fall(ch);
         });
         Timer::after_nanos(100).await; // $t_{sl}$ as per datasheet
-
-        period.await;
     }
 }
 
@@ -121,9 +141,9 @@ async fn main0(_spawner: Spawner) {
                     seq[channel as usize].load_state(&init);
 
                     if reverse.unwrap_or(false) {
-                        REVERSE_POLARITY.bit_set(channel as u32, Ordering::Relaxed);
+                        REVERSALS.bit_set(channel as u32, Ordering::Relaxed);
                     } else {
-                        REVERSE_POLARITY.bit_clear(channel as u32, Ordering::Relaxed);
+                        REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
                     }
                 }
                 RpcPacket::Position { channel, state } => {

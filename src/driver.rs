@@ -2,15 +2,6 @@ use crate::board::DriverPins;
 use blinds_sequencer::{Direction, WindowDressingInstruction};
 use core::mem;
 
-pub fn all_pins<'a, const N: usize>(
-    pins: &mut [DriverPins<'a>; N],
-    mut func: impl FnMut(&mut DriverPins),
-) {
-    for i in 0..N {
-        func(&mut pins[i]);
-    }
-}
-
 pub fn dir_hold(pins: &mut DriverPins, direction: Option<Direction>) {
     if let Some(direction) = direction {
         pins.enable.set_low();
