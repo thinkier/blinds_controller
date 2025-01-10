@@ -85,6 +85,7 @@ pub enum RpcPacket {
         channel: u8,
         init: WindowDressingState,
         full_cycle_steps: u32,
+        reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
     },
     Position {

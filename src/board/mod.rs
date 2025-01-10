@@ -10,6 +10,7 @@ pub struct DriverPins<'a> {
     pub enable: Output<'a>,
     pub step: Output<'a>,
     pub dir: Output<'a>,
+    pub reverse: bool
 }
 
 impl DriverPins<'_> {

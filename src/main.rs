@@ -3,45 +3,56 @@
 
 mod board;
 mod comms;
+mod driver;
 
 use crate::board::*;
 use crate::comms::{RpcHandle, RpcPacket};
-use blinds_sequencer::{HaltingSequencer, SensingWindowDressingSequencer, WindowDressingSequencer};
+use crate::driver::{all_pins, dir_hold, stp_fall, stp_rise};
+use blinds_sequencer::{
+    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
+    WindowDressingSequencer,
+};
+use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
 use embassy_rp::peripherals::CORE1;
 use embassy_rp::Peripherals;
 use embassy_time::{Duration, Instant, Timer};
+use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<16384> = Stack::new();
 
+static REVERSE_POLARITY: AtomicU8 = AtomicU8::new(0);
+
+const DRIVERS: usize = 4;
+
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
-async fn main1(mut driver: [DriverPins<'static>; 4]) {
-    driver[3].enable.set_low();
-    let mut counter = 0;
-    let mut start = Instant::now();
+async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     loop {
         let period = Timer::after_micros(400); // Actual ~= 1625 half-steps per second
 
-        driver[3].step.set_high();
+        let mut instr: Option<WindowDressingInstruction> = None;
+        let pol = REVERSE_POLARITY.load(Ordering::Relaxed);
+
+        all_pins(&mut chs, |ch| {
+            dir_hold(ch, instr.as_ref().map(|i| i.quality));
+        });
+        Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
+        stp_rise(&mut chs[3], &mut instr);
+        all_pins(&mut chs, |ch| {
+            stp_rise(ch, &mut instr);
+        });
         Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
-        driver[3].step.set_low();
+        all_pins(&mut chs, |ch| {
+            stp_fall(ch);
+        });
         Timer::after_nanos(100).await; // $t_{sl}$ as per datasheet
 
-        // This section of debug code causes an audible click on the motor
-        {
-            counter += 1;
-            if Instant::now().duration_since(start) > Duration::from_millis(1000) {
-                trace!("Counter: {}", counter);
-                counter = 0;
-                start = Instant::now();
-            }
-        }
         period.await;
     }
 }
@@ -103,12 +114,19 @@ async fn main0(_spawner: Spawner) {
                     channel,
                     init,
                     full_cycle_steps,
+                    reverse,
                     full_tilt_steps,
                 } => {
                     seq[channel as usize] =
                         HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
 
                     seq[channel as usize].load_state(&init);
+
+                    if reverse.unwrap_or(false) {
+                        REVERSE_POLARITY.bit_set(channel as u32, Ordering::Relaxed);
+                    } else {
+                        REVERSE_POLARITY.bit_clear(channel as u32, Ordering::Relaxed);
+                    }
                 }
                 RpcPacket::Position { channel, state } => {
                     seq[channel as usize].set_state(&state);

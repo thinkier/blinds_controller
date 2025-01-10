@@ -34,24 +34,28 @@ impl<'a> Board<'a, 4, BufferedUart<'a, UART1>, BufferedUart<'a, UART0>> {
                 enable: Output::new(&mut p.PIN_12, Level::High),
                 step: Output::new(&mut p.PIN_11, Level::Low),
                 dir: Output::new(&mut p.PIN_10, Level::Low),
+                reverse: false,
             },
             DriverPins {
                 stop: Input::new(&mut p.PIN_25, Pull::Down),
                 enable: Output::new(&mut p.PIN_2, Level::High),
                 step: Output::new(&mut p.PIN_19, Level::Low),
                 dir: Output::new(&mut p.PIN_28, Level::Low),
+                reverse: false,
             },
             DriverPins {
                 stop: Input::new(&mut p.PIN_3, Pull::Down),
                 enable: Output::new(&mut p.PIN_7, Level::High),
                 step: Output::new(&mut p.PIN_6, Level::Low),
                 dir: Output::new(&mut p.PIN_5, Level::Low),
+                reverse: false,
             },
             DriverPins {
                 stop: Input::new(&mut p.PIN_16, Pull::Down),
                 enable: Output::new(&mut p.PIN_15, Level::High),
                 step: Output::new(&mut p.PIN_14, Level::Low),
                 dir: Output::new(&mut p.PIN_13, Level::Low),
+                reverse: false,
             },
         ];
 
