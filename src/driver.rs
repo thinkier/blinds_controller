@@ -1,9 +1,11 @@
 use crate::board::DriverPins;
 use blinds_sequencer::{Direction, WindowDressingInstruction};
 use core::mem;
-use embedded_hal::digital::OutputPin;
 
-pub fn all_pins<'a, const N: usize>(pins: &mut [DriverPins<'a>; N], func: impl Fn(&mut DriverPins)) {
+pub fn all_pins<'a, const N: usize>(
+    pins: &mut [DriverPins<'a>; N],
+    mut func: impl FnMut(&mut DriverPins),
+) {
     for i in 0..N {
         func(&mut pins[i]);
     }
