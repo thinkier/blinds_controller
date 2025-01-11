@@ -6,11 +6,9 @@ mod tmc2209;
 use embassy_rp::gpio::{Input, Output};
 
 pub struct DriverPins<'a> {
-    pub stop: Input<'a>,
     pub enable: Output<'a>,
     pub step: Output<'a>,
     pub dir: Output<'a>,
-    pub reverse: bool,
 }
 
 impl DriverPins<'_> {
@@ -40,7 +38,8 @@ impl SerialBuffers {
 }
 
 pub struct Board<'a, const N: usize, D, H> {
-    pub driver: [DriverPins<'a>; N],
+    pub end_stops: [Input<'a>; N],
+    pub drivers: [DriverPins<'a>; N],
     pub driver_serial: D,
     pub host_serial: H,
 }

@@ -30,19 +30,9 @@ pub fn stp_rise(pins: &mut DriverPins, instr: &mut Option<WindowDressingInstruct
 
         match instr.quality {
             Direction::Extend => {
-                if pins.reverse {
-                    pins.dir.set_low();
-                } else {
-                    pins.dir.set_high();
-                }
                 pins.step.set_high();
             }
             Direction::Retract => {
-                if pins.reverse {
-                    pins.dir.set_high();
-                } else {
-                    pins.dir.set_low();
-                }
                 pins.step.set_high();
             }
             Direction::Hold => {}

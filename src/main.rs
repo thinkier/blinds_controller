@@ -9,29 +9,26 @@ use crate::board::*;
 use crate::comms::{LookAheadBuffer, RpcHandle, RpcPacket};
 use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
-    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
+    HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
 };
-use core::cell::RefCell;
 use core::sync::atomic::Ordering;
-use critical_section::Mutex;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
 use embassy_rp::peripherals::CORE1;
 use embassy_rp::Peripherals;
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::Timer;
 use portable_atomic::AtomicU8;
-use serde_json_core::heapless::spsc::{Consumer, Producer, Queue};
-use static_cell::{ConstStaticCell, StaticCell};
+use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<16384> = Stack::new();
 
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
-static LOOK_AHEAD_BUFFER: Mutex<RefCell<LookAheadBuffer<WindowDressingInstruction, DRIVERS>>> =
-    Mutex::new(RefCell::new(LookAheadBuffer::new()));
+type LABuffer = LookAheadBuffer<WindowDressingInstruction, DRIVERS>;
+static LOOK_AHEAD_BUFFER: LABuffer = LABuffer::new();
 
 const DRIVERS: usize = 4;
 
@@ -45,8 +42,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
             if cuf_buf[i].is_none() {
-                cuf_buf[i] =
-                    critical_section::with(|cs| LOOK_AHEAD_BUFFER.borrow_ref_mut(cs).take(i));
+                cuf_buf[i] = LOOK_AHEAD_BUFFER.take(i);
                 cuf_buf[i].iter_mut().for_each(|instr| {
                     if (reversal >> i) & 1 != 0 {
                         instr.quality = instr.quality.reverse();
@@ -110,7 +106,7 @@ async fn main0(_spawner: Spawner) {
 
         spawn_core1(core1, core1_stack, || {
             let core1_executor = CORE1_EXECUTOR.init(Executor::new());
-            core1_executor.run(|spawner| spawner.spawn(main1(board.driver)).unwrap())
+            core1_executor.run(|spawner| spawner.spawn(main1(board.drivers)).unwrap())
         });
     }
 
@@ -163,6 +159,14 @@ async fn main0(_spawner: Spawner) {
             }
             Err(e) => {
                 error!("Failed to read from host serial: {:?}", e);
+            }
+        }
+
+        for i in 0..DRIVERS {
+            if !LOOK_AHEAD_BUFFER.has(i) {
+                if let Some(instr) = seq[i].get_next_instruction() {
+                    LOOK_AHEAD_BUFFER.put(i, instr);
+                }
             }
         }
     }
