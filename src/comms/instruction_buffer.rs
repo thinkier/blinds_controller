@@ -1,13 +1,13 @@
 use core::cell::RefCell;
 use critical_section::Mutex;
 
-pub struct LookAheadBuffer<T, const N: usize> {
+pub struct InstructionBuffer<T, const N: usize> {
     inner: [Mutex<RefCell<Option<T>>>; N],
 }
 
-impl<T, const N: usize> LookAheadBuffer<T, N> {
+impl<T, const N: usize> InstructionBuffer<T, N> {
     pub const fn new() -> Self {
-        LookAheadBuffer {
+        InstructionBuffer {
             inner: [const { Mutex::new(RefCell::new(None)) }; N],
         }
     }

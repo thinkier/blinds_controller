@@ -1,5 +1,5 @@
 use crate::board::SerialBuffers;
-use crate::comms::LookAheadBuffer;
+use crate::comms::InstructionBuffer;
 use blinds_sequencer::{HaltingSequencer, WindowDressingInstruction};
 use core::mem;
 use embassy_executor::Executor;
@@ -19,7 +19,7 @@ fn memory_check() {
     sum_bytes += mem::size_of::<Stack<8192>>();
     sum_bytes += mem::size_of::<AtomicU8>();
     sum_bytes += mem::size_of::<StaticCell<Peripherals>>();
-    sum_bytes += mem::size_of::<LookAheadBuffer<WindowDressingInstruction, { crate::DRIVERS }>>();
+    sum_bytes += mem::size_of::<InstructionBuffer<WindowDressingInstruction, { crate::DRIVERS }>>();
     sum_bytes += mem::size_of::<SerialBuffers>();
     sum_bytes += mem::size_of::<StaticCell<[HaltingSequencer<1024>; { crate::DRIVERS }]>>();
 

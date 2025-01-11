@@ -8,11 +8,11 @@ mod driver;
 
 use crate::board::*;
 use crate::checks::all_checks;
-use crate::comms::{LookAheadBuffer, RpcHandle, RpcPacket};
+use crate::comms::{InstructionBuffer, RpcHandle, RpcPacket};
 use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
     HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
-    WindowDressingSequencer,
+    WindowDressingSequencer, WindowDressingState,
 };
 use core::sync::atomic::Ordering;
 use defmt::*;
@@ -28,8 +28,9 @@ use {defmt_rtt as _, panic_probe as _};
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<8192> = Stack::new();
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
-type LABuffer = LookAheadBuffer<WindowDressingInstruction, DRIVERS>;
-static LOOK_AHEAD_BUFFER: LABuffer = LABuffer::new();
+static STOPS: AtomicU8 = AtomicU8::new(0);
+type IBuf = InstructionBuffer<WindowDressingInstruction, DRIVERS>;
+static LOOK_AHEAD_BUFFER: IBuf = IBuf::new();
 static PERIPH: StaticCell<Peripherals> = StaticCell::new();
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
@@ -39,15 +40,15 @@ pub const DRIVERS: usize = 4;
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
 async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
-    let mut cuf_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
+    let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
     loop {
         let period = Timer::after_micros(400); // Actual ~= 1625 half-steps per second
 
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
-            if cuf_buf[i].is_none() {
-                cuf_buf[i] = LOOK_AHEAD_BUFFER.take(i);
-                cuf_buf[i].iter_mut().for_each(|instr| {
+            if cur_buf[i].is_none() {
+                cur_buf[i] = LOOK_AHEAD_BUFFER.take(i);
+                cur_buf[i].iter_mut().for_each(|instr| {
                     if (reversal >> i) & 1 != 0 {
                         instr.quality = instr.quality.reverse();
                     }
@@ -55,16 +56,23 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
             }
         }
 
+        let stops = STOPS.swap(0, Ordering::Relaxed);
+        for i in 0..DRIVERS {
+            if (stops << i) & 1 != 0 {
+                cur_buf[i] = None;
+            }
+        }
+
         period.await;
 
         chs.iter_mut().enumerate().for_each(|(i, ch)| {
-            dir_hold(ch, cuf_buf[i].as_ref().map(|i| i.quality));
+            dir_hold(ch, cur_buf[i].as_ref().map(|i| i.quality));
         });
         // Realistically though, that's 3 CPU cycles...
         Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
 
         chs.iter_mut().enumerate().for_each(|(i, ch)| {
-            stp_rise(ch, &mut cuf_buf[i]);
+            stp_rise(ch, &mut cur_buf[i]);
         });
         Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
 
@@ -164,12 +172,18 @@ async fn main0(_spawner: Spawner) {
             }
         }
 
+        let mut stops = 0;
         for i in 0..DRIVERS {
             if !LOOK_AHEAD_BUFFER.has(i) {
                 if let Some(instr) = seq[i].get_next_instruction() {
                     LOOK_AHEAD_BUFFER.put(i, instr);
                 }
             }
+
+            if board.end_stops[i].is_high() {
+                stops |= 1 << i;
+            }
         }
+        STOPS.or(stops, Ordering::Relaxed);
     }
 }

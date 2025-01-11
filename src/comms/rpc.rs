@@ -66,9 +66,14 @@ where
     }
 
     pub fn write(&mut self, resp: &RpcPacket) -> Result<(), RpcError<IO::Error>> {
-        let packet = serde_json_core::to_slice(resp, &mut self.packet_buf)
+        let packet = serde_json_core::to_slice(resp, &mut self.packet_buf[1..])
             .map_err(|e| RpcError::EncodeError(e))?;
-        self.serial.write_all(&self.packet_buf[0..packet])?;
+        self.packet_buf[0] = packet as u8 + 2;
+        // CRLF ensures that minicom will display the packet correctly
+        self.packet_buf[packet + 1] = b'\r';
+        self.packet_buf[packet + 2] = b'\n';
+
+        self.serial.write_all(&self.packet_buf[0..packet + 3])?;
 
         Ok(())
     }

@@ -1,4 +1,5 @@
-mod look_ahead;
+mod instruction_buffer;
 mod rpc;
-pub use look_ahead::*;
+
+pub use instruction_buffer::*;
 pub use rpc::*;
