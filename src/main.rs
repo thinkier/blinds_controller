@@ -2,10 +2,12 @@
 #![no_main]
 
 mod board;
+mod checks;
 mod comms;
 mod driver;
 
 use crate::board::*;
+use crate::checks::all_checks;
 use crate::comms::{LookAheadBuffer, RpcHandle, RpcPacket};
 use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
@@ -25,12 +27,14 @@ use {defmt_rtt as _, panic_probe as _};
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<8192> = Stack::new();
-
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
 type LABuffer = LookAheadBuffer<WindowDressingInstruction, DRIVERS>;
 static LOOK_AHEAD_BUFFER: LABuffer = LABuffer::new();
+static PERIPH: StaticCell<Peripherals> = StaticCell::new();
+static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
+static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
 
-const DRIVERS: usize = 4;
+pub const DRIVERS: usize = 4;
 
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
@@ -71,12 +75,9 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     }
 }
 
-static PERIPH: StaticCell<Peripherals> = StaticCell::new();
-static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
-static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
-
 #[embassy_executor::main]
 async fn main0(_spawner: Spawner) {
+    all_checks();
     // Initialise Peripherals
     info!("Initialising Peripherals");
     let p = PERIPH.init(embassy_rp::init(Default::default()));
