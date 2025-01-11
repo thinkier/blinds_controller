@@ -24,7 +24,7 @@ use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
-static mut CORE1_STACK: Stack<16384> = Stack::new();
+static mut CORE1_STACK: Stack<8192> = Stack::new();
 
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
 type LABuffer = LookAheadBuffer<WindowDressingInstruction, DRIVERS>;
@@ -73,6 +73,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
 static PERIPH: StaticCell<Peripherals> = StaticCell::new();
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
+static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
 
 #[embassy_executor::main]
 async fn main0(_spawner: Spawner) {
@@ -112,12 +113,12 @@ async fn main0(_spawner: Spawner) {
 
     let mut rpc = RpcHandle::<256, _>::new(board.host_serial);
 
-    let mut seq = [
+    let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
-    ];
+    ]);
     loop {
         match rpc.read() {
             Ok(Some(packet)) => match packet {
