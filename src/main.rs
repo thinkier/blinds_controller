@@ -20,7 +20,7 @@ use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
 use embassy_rp::peripherals::CORE1;
 use embassy_rp::Peripherals;
-use embassy_time::Timer;
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -40,10 +40,12 @@ pub const DRIVERS: usize = 4;
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
 async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
-    let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
-    loop {
-        let period = Timer::after_micros(400); // Actual ~= 1625 half-steps per second
+    let mut ticker = Ticker::every(Duration::from_micros(400)); // Actual ~= 1625 half-steps per second
 
+    let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
+
+    loop {
+        ticker.next().await;
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
             if cur_buf[i].is_none() {
@@ -62,8 +64,6 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
                 cur_buf[i] = None;
             }
         }
-
-        period.await;
 
         chs.iter_mut().enumerate().for_each(|(i, ch)| {
             dir_hold(ch, cur_buf[i].as_ref().map(|i| i.quality));
@@ -176,6 +176,7 @@ async fn main0(_spawner: Spawner) {
         for i in 0..DRIVERS {
             if !LOOK_AHEAD_BUFFER.has(i) {
                 if let Some(instr) = seq[i].get_next_instruction() {
+                    defmt::info!("Sending instruction to driver {}", i);
                     LOOK_AHEAD_BUFFER.put(i, instr);
                 }
             }
