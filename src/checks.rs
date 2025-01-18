@@ -21,7 +21,7 @@ fn memory_check() {
     sum_bytes += mem::size_of::<StaticCell<Peripherals>>();
     sum_bytes += mem::size_of::<InstructionBuffer<WindowDressingInstruction, { crate::DRIVERS }>>();
     sum_bytes += mem::size_of::<SerialBuffers>();
-    sum_bytes += mem::size_of::<StaticCell<[HaltingSequencer<1024>; { crate::DRIVERS }]>>();
+    sum_bytes += mem::size_of::<StaticCell<[HaltingSequencer<1024>; crate::DRIVERS]>>();
 
     defmt::info!(
         "Using {} bytes of SRAM in static variables (including core1 stack)",

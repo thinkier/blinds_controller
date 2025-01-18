@@ -1,4 +1,4 @@
-use blinds_sequencer::{Direction, WindowDressingState};
+use blinds_sequencer::WindowDressingState;
 use defmt::*;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
@@ -108,6 +108,5 @@ pub enum OutgoingRpcPacket {
     Position {
         channel: u8,
         state: WindowDressingState,
-        vector: Option<Direction>
-    }
+    },
 }

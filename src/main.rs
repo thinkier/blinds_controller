@@ -8,11 +8,11 @@ mod driver;
 
 use crate::board::*;
 use crate::checks::all_checks;
-use crate::comms::{InstructionBuffer, RpcHandle, IncomingRpcPacket, OutgoingRpcPacket};
+use crate::comms::{IncomingRpcPacket, InstructionBuffer, OutgoingRpcPacket, RpcHandle};
 use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
     HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
-    WindowDressingSequencer, WindowDressingState,
+    WindowDressingSequencer,
 };
 use core::sync::atomic::Ordering;
 use defmt::*;
@@ -20,7 +20,7 @@ use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
 use embassy_rp::peripherals::CORE1;
 use embassy_rp::Peripherals;
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -128,7 +128,6 @@ async fn main0(_spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
     ]);
-    let mut vectors: [Option<Direction>; 4] = [None; 4];
     loop {
         match rpc.read() {
             Ok(Some(packet)) => match packet {
@@ -160,7 +159,6 @@ async fn main0(_spawner: Spawner) {
                     if let Err(e) = rpc.write(&OutgoingRpcPacket::Position {
                         channel,
                         state: *seq[channel as usize].get_current_state(),
-                        vector: vectors[channel as usize],
                     }) {
                         error!("Failed to write Position: {:?}", e);
                     }
