@@ -1,4 +1,4 @@
-use blinds_sequencer::WindowDressingState;
+use blinds_sequencer::{Direction, WindowDressingState};
 use defmt::*;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
@@ -49,7 +49,7 @@ where
         }
     }
 
-    pub fn read(&mut self) -> Result<Option<RpcPacket>, RpcError<IO::Error>> {
+    pub fn read(&mut self) -> Result<Option<IncomingRpcPacket>, RpcError<IO::Error>> {
         if self.serial.read_ready()? == false {
             return Ok(None);
         }
@@ -65,7 +65,7 @@ where
         Ok(Some(packet))
     }
 
-    pub fn write(&mut self, resp: &RpcPacket) -> Result<(), RpcError<IO::Error>> {
+    pub fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), RpcError<IO::Error>> {
         let packet = serde_json_core::to_slice(resp, &mut self.packet_buf[1..])
             .map_err(|e| RpcError::EncodeError(e))?;
         self.packet_buf[0] = packet as u8 + 2;
@@ -82,7 +82,7 @@ where
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
-pub enum RpcPacket {
+pub enum IncomingRpcPacket {
     Home {
         channel: u8,
     },
@@ -93,11 +93,21 @@ pub enum RpcPacket {
         reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
     },
-    Position {
+    SetPosition {
         channel: u8,
         state: WindowDressingState,
     },
     GetPosition {
         channel: u8,
     },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutgoingRpcPacket {
+    Position {
+        channel: u8,
+        state: WindowDressingState,
+        vector: Option<Direction>
+    }
 }

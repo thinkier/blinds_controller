@@ -8,7 +8,7 @@ mod driver;
 
 use crate::board::*;
 use crate::checks::all_checks;
-use crate::comms::{InstructionBuffer, RpcHandle, RpcPacket};
+use crate::comms::{InstructionBuffer, RpcHandle, IncomingRpcPacket, OutgoingRpcPacket};
 use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
     HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
@@ -128,13 +128,14 @@ async fn main0(_spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
     ]);
+    let mut vectors: [Option<Direction>; 4] = [None; 4];
     loop {
         match rpc.read() {
             Ok(Some(packet)) => match packet {
-                RpcPacket::Home { channel } => {
+                IncomingRpcPacket::Home { channel } => {
                     seq[channel as usize].home_fully_opened();
                 }
-                RpcPacket::Setup {
+                IncomingRpcPacket::Setup {
                     channel,
                     init,
                     full_cycle_steps,
@@ -152,13 +153,14 @@ async fn main0(_spawner: Spawner) {
                         REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
                     }
                 }
-                RpcPacket::Position { channel, state } => {
+                IncomingRpcPacket::SetPosition { channel, state } => {
                     seq[channel as usize].set_state(&state);
                 }
-                RpcPacket::GetPosition { channel } => {
-                    if let Err(e) = rpc.write(&RpcPacket::Position {
+                IncomingRpcPacket::GetPosition { channel } => {
+                    if let Err(e) = rpc.write(&OutgoingRpcPacket::Position {
                         channel,
                         state: *seq[channel as usize].get_current_state(),
+                        vector: vectors[channel as usize],
                     }) {
                         error!("Failed to write Position: {:?}", e);
                     }
