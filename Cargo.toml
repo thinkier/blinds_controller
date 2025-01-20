@@ -6,22 +6,20 @@ edition = "2021"
 [features]
 default = ["btt_skr_pico_v1_0"]
 driver_tmc2209 = ["tmc2209", "configurable_driver"]
-btt_skr_pico_v1_0 = ["driver_tmc2209"]
+btt_skr_pico_v1_0 = ["embassy-rp/rp2040", "driver_tmc2209"]
 configurable_driver = []
 
 [dependencies]
-cortex-m = "0.7"
 cortex-m-rt = "0.7"
 
 defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
-embassy-executor = { version = "0.6", features = ["arch-cortex-m", "executor-thread", "defmt", "integrated-timers"] }
-embassy-time = { version = "0.3", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { version = "0.2", features = ["defmt", "time-driver", "critical-section-impl"] }
+embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.3", features = ["defmt", "time-driver", "critical-section-impl"] }
 
-embedded-hal = "1"
 embedded-io = { version = "0.6", features = ["defmt-03"] }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
