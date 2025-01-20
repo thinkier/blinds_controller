@@ -163,7 +163,8 @@ async fn main0(_spawner: Spawner) {
                 IncomingRpcPacket::GetPosition { channel } => {
                     if let Err(e) = rpc.write(&OutgoingRpcPacket::Position {
                         channel,
-                        state: *seq[channel as usize].get_current_state(),
+                        current: *seq[channel as usize].get_current_state(),
+                        desired: *seq[channel as usize].get_desired_state()
                     }) {
                         error!("Failed to write Position: {:?}", e);
                     }

@@ -117,6 +117,7 @@ pub enum OutgoingRpcPacket {
     Ready {},
     Position {
         channel: u8,
-        state: WindowDressingState,
+        current: WindowDressingState,
+        desired: WindowDressingState
     },
 }
