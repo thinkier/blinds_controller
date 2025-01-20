@@ -103,6 +103,8 @@ dependencies = [
  "embassy-time",
  "embedded-io",
  "panic-probe",
+ "pio",
+ "pio-proc",
  "portable-atomic",
  "serde",
  "serde-json-core",

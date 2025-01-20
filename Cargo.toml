@@ -18,7 +18,9 @@ panic-probe = { version = "0.3", features = ["print-defmt"] }
 
 embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { version = "0.3", features = ["defmt", "time-driver", "critical-section-impl"] }
+embassy-rp = { version = "0.3", features = ["defmt", "rt", "time-driver", "critical-section-impl"] }
+pio-proc = "0.2"
+pio = "0.2"
 
 embedded-io = { version = "0.6", features = ["defmt-03"] }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
