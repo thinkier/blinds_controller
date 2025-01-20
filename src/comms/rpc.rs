@@ -102,11 +102,12 @@ pub enum IncomingRpcPacket {
         reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
     },
-    SetPosition {
+    Set {
         channel: u8,
-        state: WindowDressingState,
+        position: Option<u8>,
+        tilt: Option<i8>
     },
-    GetPosition {
+    Get {
         channel: u8,
     },
 }

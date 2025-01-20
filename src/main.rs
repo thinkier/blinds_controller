@@ -157,14 +157,19 @@ async fn main0(_spawner: Spawner) {
                         REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
                     }
                 }
-                IncomingRpcPacket::SetPosition { channel, state } => {
-                    seq[channel as usize].set_state(&state);
+                IncomingRpcPacket::Set {
+                    channel,
+                    position,
+                    tilt,
+                } => {
+                    position.map(|p| seq[channel as usize].set_position(p));
+                    tilt.map(|t| seq[channel as usize].set_tilt(t));
                 }
-                IncomingRpcPacket::GetPosition { channel } => {
+                IncomingRpcPacket::Get { channel } => {
                     if let Err(e) = rpc.write(&OutgoingRpcPacket::Position {
                         channel,
                         current: *seq[channel as usize].get_current_state(),
-                        desired: *seq[channel as usize].get_desired_state()
+                        desired: *seq[channel as usize].get_desired_state(),
                     }) {
                         error!("Failed to write Position: {:?}", e);
                     }
