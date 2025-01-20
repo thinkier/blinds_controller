@@ -18,7 +18,8 @@ use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
-use embassy_rp::peripherals::CORE1;
+use embassy_rp::peripherals::{CORE1, WATCHDOG};
+use embassy_rp::watchdog::Watchdog;
 use embassy_rp::Peripherals;
 use embassy_time::{Duration, Ticker, Timer};
 use portable_atomic::AtomicU8;
@@ -120,7 +121,11 @@ async fn main0(_spawner: Spawner) {
         });
     }
 
-    let mut rpc = RpcHandle::<256, _>::new(board.host_serial);
+    let mut wdt = Watchdog::new(unsafe { WATCHDOG::steal() });
+    wdt.pause_on_debug(true);
+    wdt.start(Duration::from_secs(1));
+    let mut rpc = RpcHandle::<256, _>::new(board.host_serial, wdt);
+    let _ = rpc.write(&OutgoingRpcPacket::Ready {});
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),

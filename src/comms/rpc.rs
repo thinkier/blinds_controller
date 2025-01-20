@@ -1,11 +1,13 @@
 use blinds_sequencer::WindowDressingState;
 use defmt::*;
+use embassy_rp::watchdog::Watchdog;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
 
 pub struct RpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
     pub serial: IO,
+    pub wdt: Watchdog,
 }
 
 pub enum RpcError<E: embedded_io::Error> {
@@ -42,14 +44,17 @@ impl<const N: usize, IO> RpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
 {
-    pub fn new(serial: IO) -> Self {
+    pub fn new(serial: IO, wdt: Watchdog) -> Self {
         Self {
             packet_buf: [0; N],
             serial,
+            wdt,
         }
     }
 
     pub fn read(&mut self) -> Result<Option<IncomingRpcPacket>, RpcError<IO::Error>> {
+        self.wdt.feed();
+
         if self.serial.read_ready()? == false {
             return Ok(None);
         }
@@ -57,6 +62,10 @@ where
         let mut len_buf = [0u8];
         self.serial.read(&mut len_buf)?;
         let len = len_buf[0] as usize;
+        if len == 0 {
+            self.wdt.trigger_reset();
+            return Ok(None);
+        }
         self.serial.read_exact(&mut self.packet_buf[0..len])?;
         let packet = serde_json_core::from_slice(&mut self.packet_buf[0..len])
             .map_err(|e| RpcError::ParseError(e))?
@@ -105,6 +114,7 @@ pub enum IncomingRpcPacket {
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutgoingRpcPacket {
+    Ready {},
     Position {
         channel: u8,
         state: WindowDressingState,
