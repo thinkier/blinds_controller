@@ -1,7 +1,8 @@
 use embassy_rp::pio::{Common, Instance, LoadedProgram};
 
-/// This program is intended to run on a 20kHz clock, i.e. 50 instructions per cycle
-/// So the divider value should be 6250 on the 125MHz default clock
+/// This program is intended to run on a 20kHz clock, i.e. 20 instructions per cycle
+///
+/// The divider value should be 6250 on the 125MHz default clock if the desired frequency is 1KHz
 pub struct CountedSqrWavProgram<'a, PIO: Instance> {
     prg: LoadedProgram<'a, PIO>,
 }
@@ -11,13 +12,22 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
         let prg = pio_proc::pio_asm!(
             ".side_set 1"
             ".wrap_target"
-                "pull noblock side 0"
-                // "add x, isr"
-                "jmp x-- continue [9] side 0"
-                "jmp end [7] side 0"
-            "continue:"
-                "set pins, 1 [5] side 1"
-            "end:"
+            "rst:"
+                "pull noblock side 0" // Pull that series of steps into osr
+                "mov x, osr" // Move osr value into x register
+                "irq set 0" // Flag to the controller we are ready to accept more counters
+                "jmp enter" // Jump into the main loop without the extra waiting introduced to sync up the reset
+
+            "loop:"
+                "jmp enter [3] side 0" // Synchronization to prevent the reset command from causing inconsistent timing
+            "enter:"
+                "jmp x-- hi [5] side 0" // Entry to the loop, decrement x, jump to hi if we're to continue outputting square waves
+
+            "lo:"
+                "jmp loop [9] side 0" // Write lo to the pin for the rest of the phase and jump back to the loop
+            "hi:"
+                "jmp !x rst [8] side 1" // Write hi to the pin, if x is zero, jump to reset
+                "jmp loop" // Continue the loop
             ".wrap"
         );
 
