@@ -27,14 +27,14 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
                 "mov x, osr side 0" // Move osr value into x register, also beginning of the falling edge
                 "jmp enter" // Jump into the main loop without the extra waiting introduced to sync up the reset
 
-            "lo:"
+            "pull_low:"
                 "jmp enter [1] side 0"
-
             "enter:" // Reset + Enter is 9 cycles whereas Next + Enter is 8 cycles
-                "jmp x-- hi [5]" // Entry to the loop, decrement x, jump to hi
-            "hi:" // Normatively 8 cycles, resetting is 7 cycles
+                "jmp x-- pull_high [5]" // Entry to the loop, decrement x. jmp is the only instruction that's capable of updating the counter
+
+            "pull_high:" // Normatively 8 cycles, resetting is 7 cycles
                 "jmp !x reset [6] side 1" // Write hi to the pin, if x is zero, jump to reset
-                "jmp lo" // Continue the loop
+                "jmp pull_low" // Continue the loop
             ".wrap"
         );
 
