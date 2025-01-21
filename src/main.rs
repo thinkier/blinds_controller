@@ -96,7 +96,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     }
 
     // Limit the ticks to prevent lock starvation
-    let mut ticker = Ticker::every(Duration::from_millis(1));
+    let mut ticker = Ticker::every(Duration::from_micros(100));
 
     let mut direction: [Direction; DRIVERS] = [Direction::Hold; DRIVERS];
     let mut ready_at: [Instant; DRIVERS] = [Instant::now(); DRIVERS];
@@ -104,6 +104,15 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
     loop {
         ticker.next().await;
+        // for i in 0..DRIVERS {
+        //     let i = 0;
+        //     defmt::info!(
+        //         "Channel {}: stopped={}, ready={}",
+        //         i,
+        //         run_on_channel!(i, CountedSqrWav::stopped),
+        //         run_on_channel!(i, CountedSqrWav::ready)
+        //     );
+        // }
 
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
@@ -133,6 +142,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
             if run_on_channel!(i, CountedSqrWav::ready) {
                 if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
+                    info!("Pulling instruction for {}", i);
                     chs[i].enable.set_low();
                     if run_on_channel!(i, CountedSqrWav::stopped) {
                         // Direction changes may only occur when the channel is no longer producing phases
@@ -149,7 +159,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
                                 // Stop further commands on the PIO SMs & move on to the next channel
                                 // Also stops the instruction being placed back into the buffer (as this block handles it)
                                 continue;
-                            },
+                            }
                             Direction::Retract => chs[i].dir.set_high(),
                             Direction::Extend => chs[i].dir.set_low(),
                         }
@@ -157,7 +167,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
                     if direction[i] == instr.quality {
                         // If the direction has not changed, it may be pushed without interruption
-                        // try_push will always succeed because we just checked CountedSqrWav::stopped
+                        // try_push will always succeed because we just checked CountedSqrWav::ready
                         run_on_channel!(i, CountedSqrWav::try_push, instr.quantity);
                     } else {
                         // Place the instruction back to the buffer if it was not executed
@@ -274,7 +284,7 @@ async fn main0(_spawner: Spawner) {
         let mut stops = 0;
         for i in 0..DRIVERS {
             if !LOOK_AHEAD_BUFFER.has(i) {
-                if let Some(instr) = seq[i].get_next_instruction() {
+                if let Some(instr) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
                     defmt::info!("Sending instruction to driver {}", i);
                     LOOK_AHEAD_BUFFER.put(i, instr);
                 }

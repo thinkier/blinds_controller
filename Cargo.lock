@@ -116,7 +116,7 @@ dependencies = [
 [[package]]
 name = "blinds_sequencer"
 version = "0.3.0"
-source = "git+https://github.com/thinkier/blinds_sequencer#c7efb307e98e0b1e40892d01b27734767333393c"
+source = "git+https://github.com/thinkier/blinds_sequencer#79db4adecd4465c20bc8a8c7de4a5318f42d80ab"
 dependencies = [
  "heapless",
  "serde",

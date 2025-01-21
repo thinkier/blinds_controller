@@ -72,11 +72,12 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     }
 
     pub fn kill(&mut self) {
+        self.sm.set_enable(false);
         self.sm.restart();
     }
 
     pub fn stopped(&mut self) -> bool {
-        self.sm.tx().stalled()
+        self.sm.tx().stalled() || !self.sm.is_enabled()
     }
 
     pub fn ready(&mut self) -> bool {
@@ -84,6 +85,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     }
 
     pub fn try_push(&mut self, count: u32) -> bool {
+        self.sm.set_enable(true);
         self.sm.tx().try_push(count)
     }
 }
