@@ -102,6 +102,7 @@ dependencies = [
  "embassy-rp",
  "embassy-time",
  "embedded-io",
+ "fixed",
  "panic-probe",
  "pio",
  "pio-proc",

@@ -1,21 +1,17 @@
-use embassy_rp::pio::{Common, Instance, LoadedProgram};
+use embassy_rp::clocks::clk_sys_freq;
+use embassy_rp::gpio::Level;
+use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, Pin, PioPin, StateMachine};
+use fixed::traits::ToFixed;
 
-/// This program is intended to run on a 20:1 ratio i.e. 20 PIO cycles per output cycle
+/// This program is intended to run on a 16:1 ratio i.e. 16 PIO cycles per output cycle
 ///
 /// $$
 ///     \text{Output Frequency} = \frac{
 ///         \text{System Frequency}
 ///     }{
-///         \text{Divider} \times 20
+///         \text{Divider} \times 16
 ///     }
 /// $$
-///
-/// ## Sample PIO clock divider values for the default 125MHz clock
-/// | Divider | Output Frequency |
-/// |---------|------------------|
-/// | 12_500  | 500 Hz           |
-/// | 6250    | 1 kHz            |
-/// | 3125    | 2 kHz            |
 pub struct CountedSqrWavProgram<'a, PIO: Instance> {
     prg: LoadedProgram<'a, PIO>,
 }
@@ -23,28 +19,58 @@ pub struct CountedSqrWavProgram<'a, PIO: Instance> {
 impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
         let prg = pio_proc::pio_asm!(
-            ".side_set 1"
+            ".side_set 1 opt"
             ".wrap_target"
+
             "reset:"
-                "pull block side 0" // Pull an updated counter from TX FIFO into osr
-                "mov x, osr side 0" // Move osr value into x register
-                "jmp enter side 0" // Jump into the main loop without the extra waiting introduced to sync up the reset
+                "pull block" // Pull an updated counter from TX FIFO into osr
+                "mov x, osr side 0" // Move osr value into x register, also beginning of the falling edge
+                "jmp enter" // Jump into the main loop without the extra waiting introduced to sync up the reset
 
-            "next:"
+            "lo:"
                 "jmp enter [1] side 0"
-            "enter:" // Reset + Enter is 11 cycles whereas Next + Enter is 10 cycles
-                "jmp x-- hi [7] side 0" // Entry to the loop, decrement x, jump to hi if we're to continue outputting square waves
 
-            "lo:" // Normatively 10 cycles
-                "jmp next [9] side 0" // Write lo to the pin for the rest of the phase and jump back to the loop
-            "hi:" // Normatively 10 cycles, resetting is 9 cycles
-                "jmp !x reset [8] side 1" // Write hi to the pin, if x is zero, jump to reset
-                "jmp next side 1" // Continue the loop
+            "enter:" // Reset + Enter is 9 cycles whereas Next + Enter is 8 cycles
+                "jmp x-- hi [5]" // Entry to the loop, decrement x, jump to hi
+            "hi:" // Normatively 8 cycles, resetting is 7 cycles
+                "jmp !x reset [6] side 1" // Write hi to the pin, if x is zero, jump to reset
+                "jmp lo" // Continue the loop
             ".wrap"
         );
 
         let prg = common.load_program(&prg.program);
 
         Self { prg }
+    }
+}
+
+pub struct CountedSqrWav<'a, PIO: Instance, const SM: usize> {
+    sm: StateMachine<'a, PIO, SM>,
+    pin: Pin<'a, PIO>
+}
+
+impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
+    pub fn new(
+        pio: &'a mut Common<'a, PIO>,
+        mut sm: StateMachine<'a, PIO, SM>,
+        pin: &'a mut impl PioPin,
+        program: &'a CountedSqrWavProgram<'a, PIO>,
+        frequency: u16
+    ) -> Self {
+        let pin = pio.make_pio_pin(pin);
+        sm.set_pins(Level::Low, &[&pin]);
+        sm.set_pin_dirs(Direction::Out, &[&pin]);
+
+        let mut cfg = Config::default();
+        cfg.use_program(&program.prg, &[&pin]);
+        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 16)).to_fixed();
+
+        sm.set_config(&cfg);
+
+        Self { sm, pin }
+    }
+
+    pub async fn push(&mut self, count: u32) {
+        self.sm.tx().wait_push(count).await;
     }
 }
