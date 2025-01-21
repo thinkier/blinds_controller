@@ -1,6 +1,6 @@
 #[cfg(feature = "btt_skr_pico_v1_0")]
 mod btt_skr_pico_v1_0;
-mod rp_pio;
+mod rp_act;
 #[cfg(feature = "driver_tmc2209")]
 mod tmc2209;
 

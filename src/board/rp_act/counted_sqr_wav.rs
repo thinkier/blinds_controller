@@ -15,13 +15,12 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
             "rst:"
                 "pull noblock side 0" // Pull an updated counter from TX FIFO into osr
                 "mov x, osr" // Move osr value into x register
-                "irq set 0" // Flag to the controller we are ready to accept more counters
                 "jmp enter" // Jump into the main loop without the extra waiting introduced to sync up the reset
 
             "loop:"
-                "jmp enter [3] side 0" // Synchronization with the reset code
+                "jmp enter [2] side 0" // Synchronization with the reset code
             "enter:"
-                "jmp x-- hi [5] side 0" // Entry to the loop, decrement x, jump to hi if we're to continue outputting square waves
+                "jmp x-- hi [6] side 0" // Entry to the loop, decrement x, jump to hi if we're to continue outputting square waves
 
             "lo:"
                 "jmp loop [9] side 0" // Write lo to the pin for the rest of the phase and jump back to the loop
