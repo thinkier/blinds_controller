@@ -1,7 +1,7 @@
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
 use embassy_rp::pio::{
-    Common, Config, Direction, Instance, LoadedProgram, Pin, PioPin, StateMachine,
+    Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine,
 };
 use fixed::traits::ToFixed;
 
@@ -47,15 +47,14 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
 }
 
 pub struct CountedSqrWav<'a, PIO: Instance, const SM: usize> {
-    sm: StateMachine<'a, PIO, SM>,
-    pin: Pin<'a, PIO>,
+    sm: &'a mut StateMachine<'a, PIO, SM>
 }
 
 impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     pub fn new(
-        pio: &'a mut Common<'a, PIO>,
-        mut sm: StateMachine<'a, PIO, SM>,
-        pin: &'a mut impl PioPin,
+        pio: &mut Common<'a, PIO>,
+        sm: &'a mut StateMachine<'a, PIO, SM>,
+        pin: impl PioPin,
         program: &'a CountedSqrWavProgram<'a, PIO>,
         frequency: u16,
     ) -> Self {
@@ -69,7 +68,11 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
 
         sm.set_config(&cfg);
 
-        Self { sm, pin }
+        Self { sm }
+    }
+
+    pub fn kill(&mut self) {
+        self.sm.restart();
     }
 
     pub fn stopped(&mut self) -> bool {
@@ -82,9 +85,5 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
 
     pub fn try_push(&mut self, count: u32) -> bool {
         self.sm.tx().try_push(count)
-    }
-
-    pub async fn wait_push(&mut self, count: u32) {
-        self.sm.tx().wait_push(count).await;
     }
 }

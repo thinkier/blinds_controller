@@ -4,24 +4,25 @@
 mod board;
 mod checks;
 mod comms;
-mod driver;
 
 use crate::board::*;
+use crate::board::{CountedSqrWav, CountedSqrWavProgram};
 use crate::checks::all_checks;
 use crate::comms::{IncomingRpcPacket, InstructionBuffer, OutgoingRpcPacket, RpcHandle};
-use crate::driver::{dir_hold, stp_fall, stp_rise};
 use blinds_sequencer::{
-    HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
+    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
 };
+use core::mem;
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
 use embassy_rp::multicore::{spawn_core1, Stack};
-use embassy_rp::peripherals::{CORE1, WATCHDOG};
+use embassy_rp::peripherals::{CORE1, PIN_11, PIN_14, PIN_19, PIN_6, PIO0, WATCHDOG};
+use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::watchdog::Watchdog;
-use embassy_rp::Peripherals;
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_rp::{bind_interrupts, Peripherals};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -35,18 +36,75 @@ static LOOK_AHEAD_BUFFER: IBuf = IBuf::new();
 static PERIPH: StaticCell<Peripherals> = StaticCell::new();
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
+static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
+static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
 
 pub const DRIVERS: usize = 4;
+pub const FREQUENCY: u16 = 2000;
+
+bind_interrupts!(struct Irqs {
+    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+});
 
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
 async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
-    let mut ticker = Ticker::every(Duration::from_micros(400)); // Actual ~= 1625 half-steps per second
+    let pio = PIO0.init(Pio::new(unsafe { PIO0::steal() }, Irqs));
+    let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
+    let mut ch0 = CountedSqrWav::new(
+        &mut pio.common,
+        &mut pio.sm0,
+        unsafe { PIN_11::steal() },
+        prog,
+        FREQUENCY,
+    );
+    let mut ch1 = CountedSqrWav::new(
+        &mut pio.common,
+        &mut pio.sm1,
+        unsafe { PIN_19::steal() },
+        prog,
+        FREQUENCY,
+    );
+    let mut ch2 = CountedSqrWav::new(
+        &mut pio.common,
+        &mut pio.sm2,
+        unsafe { PIN_6::steal() },
+        prog,
+        FREQUENCY,
+    );
+    let mut ch3 = CountedSqrWav::new(
+        &mut pio.common,
+        &mut pio.sm3,
+        unsafe { PIN_14::steal() },
+        prog,
+        FREQUENCY,
+    );
 
+    macro_rules! run_on_channel {
+        ($ch:expr, $run:path $(,$args:expr)*) => {
+            match $ch {
+                0 => $run(&mut ch0 $(,$args)*),
+                1 => $run(&mut ch1 $(,$args)*),
+                2 => $run(&mut ch2 $(,$args)*),
+                3 => $run(&mut ch3 $(,$args)*),
+                _ => defmt::unreachable!(
+                    "Is there more than {} channels for this board?",
+                    DRIVERS
+                ),
+            }
+        };
+    }
+
+    // Limit the ticks to prevent lock starvation
+    let mut ticker = Ticker::every(Duration::from_millis(1));
+
+    let mut direction: [Direction; DRIVERS] = [Direction::Hold; DRIVERS];
+    let mut ready_at: [Instant; DRIVERS] = [Instant::now(); DRIVERS];
     let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
 
     loop {
         ticker.next().await;
+
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
             if cur_buf[i].is_none() {
@@ -60,27 +118,57 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
         }
 
         let stops = STOPS.swap(0, Ordering::Relaxed);
+        let now = Instant::now();
         for i in 0..DRIVERS {
             if (stops << i) & 1 != 0 {
+                direction[i] = Direction::Hold;
                 cur_buf[i] = None;
+                run_on_channel!(i, CountedSqrWav::kill);
+            }
+
+            // Skip if the channel isn't ready
+            if now < ready_at[i] {
+                continue;
+            }
+
+            if run_on_channel!(i, CountedSqrWav::ready) {
+                if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
+                    chs[i].enable.set_low();
+                    if run_on_channel!(i, CountedSqrWav::stopped) {
+                        // Direction changes may only occur when the channel is no longer producing phases
+                        direction[i] = instr.quality;
+
+                        match instr.quality {
+                            Direction::Hold => {
+                                // Hold instructions are handled by CPU clock instants
+                                let ready = Duration::from_micros(
+                                    1_000_000 * instr.quantity as u64 / FREQUENCY as u64,
+                                );
+                                ready_at[i] = now + ready;
+
+                                // Stop further commands on the PIO SMs & move on to the next channel
+                                // Also stops the instruction being placed back into the buffer (as this block handles it)
+                                continue;
+                            },
+                            Direction::Retract => chs[i].dir.set_high(),
+                            Direction::Extend => chs[i].dir.set_low(),
+                        }
+                    }
+
+                    if direction[i] == instr.quality {
+                        // If the direction has not changed, it may be pushed without interruption
+                        // try_push will always succeed because we just checked CountedSqrWav::stopped
+                        run_on_channel!(i, CountedSqrWav::try_push, instr.quantity);
+                    } else {
+                        // Place the instruction back to the buffer if it was not executed
+                        let _ = mem::replace(&mut cur_buf[i], Some(instr));
+                    }
+                } else if run_on_channel!(i, CountedSqrWav::stopped) {
+                    // If there are no instructions, and the remaining instruction is completed, the channel will be disabled
+                    chs[i].enable.set_high();
+                }
             }
         }
-
-        chs.iter_mut().enumerate().for_each(|(i, ch)| {
-            dir_hold(ch, cur_buf[i].as_ref().map(|i| i.quality));
-        });
-        // Realistically though, that's 3 CPU cycles...
-        Timer::after_nanos(20).await; // $t_{dsh}$ & $t_{dsu}$ as per datasheet
-
-        chs.iter_mut().enumerate().for_each(|(i, ch)| {
-            stp_rise(ch, &mut cur_buf[i]);
-        });
-        Timer::after_nanos(100).await; // $t_{sh}$ as per datasheet
-
-        chs.iter_mut().for_each(|ch| {
-            stp_fall(ch);
-        });
-        Timer::after_nanos(100).await; // $t_{sl}$ as per datasheet
     }
 }
 

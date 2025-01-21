@@ -1,24 +1,18 @@
 #[cfg(feature = "btt_skr_pico_v1_0")]
 mod btt_skr_pico_v1_0;
-/// Supporting modules to emulate an STM ACT peripheral
+/// Supporting module to emulate the square wave generation capability on STM ACT peripheral
+/// using RP PIO State machines
 mod rp_act;
 #[cfg(feature = "driver_tmc2209")]
 mod tmc2209;
 
 use embassy_rp::gpio::{Input, Output};
+pub use rp_act::counted_sqr_wav_pio::*;
 
 pub struct DriverPins<'a> {
     pub enable: Output<'a>,
-    pub step: Output<'a>,
+    // pub step: Output<'a>,
     pub dir: Output<'a>,
-}
-
-impl DriverPins<'_> {
-    pub fn reset(&mut self) {
-        self.enable.set_high();
-        self.step.set_low();
-        self.dir.set_low();
-    }
 }
 
 pub struct SerialBuffers {
