@@ -1,6 +1,8 @@
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
-use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, Pin, PioPin, StateMachine};
+use embassy_rp::pio::{
+    Common, Config, Direction, Instance, LoadedProgram, Pin, PioPin, StateMachine,
+};
 use fixed::traits::ToFixed;
 
 /// This program is intended to run on a 16:1 ratio i.e. 16 PIO cycles per output cycle
@@ -9,7 +11,7 @@ use fixed::traits::ToFixed;
 ///     \text{Output Frequency} = \frac{
 ///         \text{System Frequency}
 ///     }{
-///         \text{Divider} \times 16
+///         \text{Divider} \times 10
 ///     }
 /// $$
 pub struct CountedSqrWavProgram<'a, PIO: Instance> {
@@ -29,11 +31,11 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
 
             "pull_low:"
                 "jmp enter [1] side 0"
-            "enter:" // Reset + Enter is 9 cycles whereas Next + Enter is 8 cycles
-                "jmp x-- pull_high [5]" // Entry to the loop, decrement x. jmp is the only instruction that's capable of updating the counter
+            "enter:" // Reset + Enter is 6 cycles whereas Pull-Low + Enter is 5 cycles
+                "jmp x-- pull_high [2]" // Entry to the loop, decrement x. jmp is the only instruction that's capable of updating the counter
 
-            "pull_high:" // Normatively 8 cycles, resetting is 7 cycles
-                "jmp !x reset [6] side 1" // Write hi to the pin, if x is zero, jump to reset
+            "pull_high:" // Normatively 5 cycles, resetting is 4 cycles
+                "jmp !x reset [3] side 1" // Write hi to the pin, if x is zero, jump to reset
                 "jmp pull_low" // Continue the loop
             ".wrap"
         );
@@ -46,7 +48,7 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
 
 pub struct CountedSqrWav<'a, PIO: Instance, const SM: usize> {
     sm: StateMachine<'a, PIO, SM>,
-    pin: Pin<'a, PIO>
+    pin: Pin<'a, PIO>,
 }
 
 impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
@@ -55,7 +57,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
         mut sm: StateMachine<'a, PIO, SM>,
         pin: &'a mut impl PioPin,
         program: &'a CountedSqrWavProgram<'a, PIO>,
-        frequency: u16
+        frequency: u16,
     ) -> Self {
         let pin = pio.make_pio_pin(pin);
         sm.set_pins(Level::Low, &[&pin]);
@@ -63,14 +65,26 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
 
         let mut cfg = Config::default();
         cfg.use_program(&program.prg, &[&pin]);
-        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 16)).to_fixed();
+        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 10)).to_fixed();
 
         sm.set_config(&cfg);
 
         Self { sm, pin }
     }
 
-    pub async fn push(&mut self, count: u32) {
+    pub fn stopped(&mut self) -> bool {
+        self.sm.tx().stalled()
+    }
+
+    pub fn ready(&mut self) -> bool {
+        self.sm.tx().empty()
+    }
+
+    pub fn try_push(&mut self, count: u32) -> bool {
+        self.sm.tx().try_push(count)
+    }
+
+    pub async fn wait_push(&mut self, count: u32) {
         self.sm.tx().wait_push(count).await;
     }
 }
