@@ -1,8 +1,6 @@
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
-use embassy_rp::pio::{
-    Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine,
-};
+use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
 use fixed::traits::ToFixed;
 
 /// This program is intended to run on a 16:1 ratio i.e. 16 PIO cycles per output cycle
@@ -47,7 +45,7 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
 }
 
 pub struct CountedSqrWav<'a, PIO: Instance, const SM: usize> {
-    sm: &'a mut StateMachine<'a, PIO, SM>
+    sm: &'a mut StateMachine<'a, PIO, SM>,
 }
 
 impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {

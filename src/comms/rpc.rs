@@ -99,11 +99,12 @@ pub enum IncomingRpcPacket {
         full_cycle_steps: u32,
         reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
+        sgthrs: Option<u8>,
     },
     Set {
         channel: u8,
         position: Option<u8>,
-        tilt: Option<i8>
+        tilt: Option<i8>,
     },
     Get {
         channel: u8,
@@ -117,6 +118,6 @@ pub enum OutgoingRpcPacket {
     Position {
         channel: u8,
         current: WindowDressingState,
-        desired: WindowDressingState
+        desired: WindowDressingState,
     },
 }

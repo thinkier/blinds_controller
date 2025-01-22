@@ -4,7 +4,7 @@ mod btt_skr_pico_v1_0;
 /// using RP PIO State machines
 mod rp_act;
 #[cfg(feature = "tmc2209")]
-mod tmc2209;
+pub mod tmc2209;
 
 use embassy_rp::gpio::{Input, Output};
 pub use rp_act::counted_sqr_wav_pio::*;

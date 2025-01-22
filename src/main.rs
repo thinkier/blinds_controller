@@ -26,6 +26,7 @@ use embassy_time::{Duration, Instant, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
+use crate::board::tmc2209::SetSgthrs;
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<8192> = Stack::new();
@@ -104,15 +105,6 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
     loop {
         ticker.next().await;
-        // for i in 0..DRIVERS {
-        //     let i = 0;
-        //     defmt::info!(
-        //         "Channel {}: stopped={}, ready={}",
-        //         i,
-        //         run_on_channel!(i, CountedSqrWav::stopped),
-        //         run_on_channel!(i, CountedSqrWav::ready)
-        //     );
-        // }
 
         let reversal = REVERSALS.load(Ordering::Relaxed);
         for i in 0..DRIVERS {
@@ -240,6 +232,7 @@ async fn main0(_spawner: Spawner) {
                     full_cycle_steps,
                     reverse,
                     full_tilt_steps,
+                    sgthrs,
                 } => {
                     seq[channel as usize] =
                         HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
@@ -250,6 +243,10 @@ async fn main0(_spawner: Spawner) {
                         REVERSALS.bit_set(channel as u32, Ordering::Relaxed);
                     } else {
                         REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
+                    }
+
+                    if let Some(sgthrs) = sgthrs {
+                        board.driver_serial.set_sgthrs(channel, sgthrs);
                     }
                 }
                 IncomingRpcPacket::Set {
@@ -287,7 +284,6 @@ async fn main0(_spawner: Spawner) {
             }
 
             if board.end_stops[i].is_high() {
-                defmt::error!("STALL DETECTED ON {}", i);
                 stops |= 1 << i;
             }
         }
