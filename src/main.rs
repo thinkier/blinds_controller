@@ -282,12 +282,12 @@ async fn main0(_spawner: Spawner) {
         for i in 0..DRIVERS {
             if !LOOK_AHEAD_BUFFER.has(i) {
                 if let Some(instr) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
-                    defmt::info!("Sending instruction to driver {}", i);
                     LOOK_AHEAD_BUFFER.put(i, instr);
                 }
             }
 
             if board.end_stops[i].is_high() {
+                defmt::error!("STALL DETECTED ON {}", i);
                 stops |= 1 << i;
             }
         }

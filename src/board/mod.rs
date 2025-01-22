@@ -3,7 +3,7 @@ mod btt_skr_pico_v1_0;
 /// Supporting module to emulate the square wave generation capability on STM ACT peripheral
 /// using RP PIO State machines
 mod rp_act;
-#[cfg(feature = "driver_tmc2209")]
+#[cfg(feature = "tmc2209")]
 mod tmc2209;
 
 use embassy_rp::gpio::{Input, Output};

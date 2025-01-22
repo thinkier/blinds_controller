@@ -5,8 +5,8 @@ edition = "2021"
 
 [features]
 default = ["btt_skr_pico_v1_0"]
-driver_tmc2209 = ["tmc2209", "configurable_driver"]
-btt_skr_pico_v1_0 = ["embassy-rp/rp2040", "driver_tmc2209"]
+tmc2209 = ["dep:tmc2209", "configurable_driver"]
+btt_skr_pico_v1_0 = ["embassy-rp/rp2040", "tmc2209"]
 configurable_driver = []
 
 [dependencies]
