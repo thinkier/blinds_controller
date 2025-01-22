@@ -53,8 +53,6 @@ where
     }
 
     pub fn read(&mut self) -> Result<Option<IncomingRpcPacket>, RpcError<IO::Error>> {
-        self.wdt.feed();
-
         if self.serial.read_ready()? == false {
             return Ok(None);
         }

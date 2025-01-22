@@ -142,7 +142,6 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
 
             if run_on_channel!(i, CountedSqrWav::ready) {
                 if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
-                    info!("Pulling instruction for {}", i);
                     chs[i].enable.set_low();
                     if run_on_channel!(i, CountedSqrWav::stopped) {
                         // Direction changes may only occur when the channel is no longer producing phases
@@ -219,9 +218,7 @@ async fn main0(_spawner: Spawner) {
         });
     }
 
-    let mut wdt = Watchdog::new(unsafe { WATCHDOG::steal() });
-    wdt.pause_on_debug(true);
-    wdt.start(Duration::from_secs(1));
+    let wdt = Watchdog::new(unsafe { WATCHDOG::steal() });
     let mut rpc = RpcHandle::<256, _>::new(board.host_serial, wdt);
     let _ = rpc.write(&OutgoingRpcPacket::Ready {});
 
