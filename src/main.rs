@@ -5,6 +5,7 @@ mod board;
 mod checks;
 mod comms;
 
+use crate::board::tmc2209::{ReadSgDiagnostics, SetSgthrs};
 use crate::board::*;
 use crate::board::{CountedSqrWav, CountedSqrWavProgram};
 use crate::checks::all_checks;
@@ -26,7 +27,6 @@ use embassy_time::{Duration, Instant, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
-use crate::board::tmc2209::SetSgthrs;
 
 static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static mut CORE1_STACK: Stack<8192> = Stack::new();
@@ -41,7 +41,7 @@ static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
 static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
 
 pub const DRIVERS: usize = 4;
-pub const FREQUENCY: u16 = 2000;
+pub const FREQUENCY: u16 = 1000;
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -188,7 +188,7 @@ async fn main0(_spawner: Spawner) {
     let mut board = Board::init(p, serial_buffers);
     #[cfg(feature = "configurable_driver")]
     {
-        board.configure_driver();
+        board.configure_driver().await;
     }
     info!("Peripherals Initialised");
 
@@ -220,7 +220,14 @@ async fn main0(_spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
     ]);
+
     loop {
+        Timer::after_millis(250).await;
+        // for i in 0..DRIVERS {
+        let i = 0;
+        board.driver_serial.read_sg_diagnostics(i as u8).await;
+        //     Timer::after_millis(10).await;
+        // }
         match rpc.read() {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
@@ -285,6 +292,8 @@ async fn main0(_spawner: Spawner) {
 
             if board.end_stops[i].is_high() {
                 stops |= 1 << i;
+                defmt::warn!("Stall detected on {}", i);
+                loop {}
             }
         }
         STOPS.or(stops, Ordering::Relaxed);
