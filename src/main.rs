@@ -5,9 +5,10 @@ mod board;
 mod checks;
 mod comms;
 
+use crate::board::raspberry::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
+use crate::board::raspberry::DriverPins;
 use crate::board::tmc2209::{ReadSgDiagnostics, SetSgthrs};
 use crate::board::*;
-use crate::board::{CountedSqrWav, CountedSqrWavProgram};
 use crate::checks::all_checks;
 use crate::comms::{IncomingRpcPacket, InstructionBuffer, OutgoingRpcPacket, RpcHandle};
 use blinds_sequencer::{
@@ -18,12 +19,12 @@ use core::mem;
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
+use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::Input;
 use embassy_rp::multicore::{spawn_core1, Stack};
-use embassy_rp::peripherals::{CORE1, PIN_11, PIN_14, PIN_19, PIN_6, PIO0, WATCHDOG};
+use embassy_rp::peripherals::{CORE1, PIO0, PIO1, WATCHDOG};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::watchdog::Watchdog;
-use embassy_rp::{bind_interrupts, Peripherals};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
@@ -35,7 +36,6 @@ static REVERSALS: AtomicU8 = AtomicU8::new(0);
 static STOPS: AtomicU8 = AtomicU8::new(0);
 type IBuf = InstructionBuffer<WindowDressingInstruction, DRIVERS>;
 static LOOK_AHEAD_BUFFER: IBuf = IBuf::new();
-static PERIPH: StaticCell<Peripherals> = StaticCell::new();
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
@@ -46,42 +46,12 @@ pub const FREQUENCY: u16 = 1000;
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
+    PIO1_IRQ_0 => InterruptHandler<PIO1>;
 });
 
 // A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
 #[embassy_executor::task]
 async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
-    let pio = PIO0.init(Pio::new(unsafe { PIO0::steal() }, Irqs));
-    let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
-    let mut ch0 = CountedSqrWav::new(
-        &mut pio.common,
-        &mut pio.sm0,
-        unsafe { PIN_11::steal() },
-        prog,
-        FREQUENCY,
-    );
-    let mut ch1 = CountedSqrWav::new(
-        &mut pio.common,
-        &mut pio.sm1,
-        unsafe { PIN_19::steal() },
-        prog,
-        FREQUENCY,
-    );
-    let mut ch2 = CountedSqrWav::new(
-        &mut pio.common,
-        &mut pio.sm2,
-        unsafe { PIN_6::steal() },
-        prog,
-        FREQUENCY,
-    );
-    let mut ch3 = CountedSqrWav::new(
-        &mut pio.common,
-        &mut pio.sm3,
-        unsafe { PIN_14::steal() },
-        prog,
-        FREQUENCY,
-    );
-
     macro_rules! run_on_channel {
         ($ch:expr, $run:path $(,$args:expr)*) => {
             match $ch {
@@ -104,74 +74,74 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     let mut ready_at: [Instant; DRIVERS] = [Instant::now(); DRIVERS];
     let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
 
-    loop {
-        ticker.next().await;
-
-        let reversal = REVERSALS.load(Ordering::Acquire);
-        for i in 0..DRIVERS {
-            if cur_buf[i].is_none() {
-                cur_buf[i] = LOOK_AHEAD_BUFFER.take(i);
-                cur_buf[i].iter_mut().for_each(|instr| {
-                    if (reversal >> i) & 1 != 0 {
-                        instr.quality = instr.quality.reverse();
-                    }
-                });
-            }
-        }
-
-        let stops = STOPS.swap(0, Ordering::AcqRel);
-        let now = Instant::now();
-        for i in 0..DRIVERS {
-            if (stops << i) & 1 != 0 {
-                direction[i] = Direction::Hold;
-                cur_buf[i] = None;
-                run_on_channel!(i, CountedSqrWav::kill);
-            }
-
-            // Skip if the channel isn't ready
-            if now < ready_at[i] {
-                continue;
-            }
-
-            if run_on_channel!(i, CountedSqrWav::ready) {
-                if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
-                    chs[i].enable.set_low();
-                    if run_on_channel!(i, CountedSqrWav::stopped) {
-                        // Direction changes may only occur when the channel is no longer producing phases
-                        direction[i] = instr.quality;
-
-                        match instr.quality {
-                            Direction::Hold => {
-                                // Hold instructions are handled by CPU clock instants
-                                let ready = Duration::from_micros(
-                                    1_000_000 * instr.quantity as u64 / FREQUENCY as u64,
-                                );
-                                ready_at[i] = now + ready;
-
-                                // Stop further commands on the PIO SMs & move on to the next channel
-                                // Also stops the instruction being placed back into the buffer (as this block handles it)
-                                continue;
-                            }
-                            Direction::Retract => chs[i].dir.set_high(),
-                            Direction::Extend => chs[i].dir.set_low(),
-                        }
-                    }
-
-                    if direction[i] == instr.quality {
-                        // If the direction has not changed, it may be pushed without interruption
-                        // try_push will always succeed because we just checked CountedSqrWav::ready
-                        run_on_channel!(i, CountedSqrWav::try_push, instr.quantity);
-                    } else {
-                        // Place the instruction back to the buffer if it was not executed
-                        let _ = mem::replace(&mut cur_buf[i], Some(instr));
-                    }
-                } else if run_on_channel!(i, CountedSqrWav::stopped) {
-                    // If there are no instructions, and the remaining instruction is completed, the channel will be disabled
-                    chs[i].enable.set_high();
-                }
-            }
-        }
-    }
+    // loop {
+    //     ticker.next().await;
+    //
+    //     let reversal = REVERSALS.load(Ordering::Acquire);
+    //     for i in 0..DRIVERS {
+    //         if cur_buf[i].is_none() {
+    //             cur_buf[i] = LOOK_AHEAD_BUFFER.take(i);
+    //             cur_buf[i].iter_mut().for_each(|instr| {
+    //                 if (reversal >> i) & 1 != 0 {
+    //                     instr.quality = instr.quality.reverse();
+    //                 }
+    //             });
+    //         }
+    //     }
+    //
+    //     let stops = STOPS.swap(0, Ordering::AcqRel);
+    //     let now = Instant::now();
+    //     for i in 0..DRIVERS {
+    //         if (stops << i) & 1 != 0 {
+    //             direction[i] = Direction::Hold;
+    //             cur_buf[i] = None;
+    //             run_on_channel!(i, CountedSqrWav::clear);
+    //         }
+    //
+    //         // Skip if the channel isn't ready
+    //         if now < ready_at[i] {
+    //             continue;
+    //         }
+    //
+    //         if run_on_channel!(i, CountedSqrWav::ready) {
+    //             if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
+    //                 chs[i].enable.set_low();
+    //                 if run_on_channel!(i, CountedSqrWav::stopped) {
+    //                     // Direction changes may only occur when the channel is no longer producing phases
+    //                     direction[i] = instr.quality;
+    //
+    //                     match instr.quality {
+    //                         Direction::Hold => {
+    //                             // Hold instructions are handled by CPU clock instants
+    //                             let ready = Duration::from_micros(
+    //                                 1_000_000 * instr.quantity as u64 / FREQUENCY as u64,
+    //                             );
+    //                             ready_at[i] = now + ready;
+    //
+    //                             // Stop further commands on the PIO SMs & move on to the next channel
+    //                             // Also stops the instruction being placed back into the buffer (as this block handles it)
+    //                             continue;
+    //                         }
+    //                         Direction::Retract => chs[i].dir.set_high(),
+    //                         Direction::Extend => chs[i].dir.set_low(),
+    //                     }
+    //                 }
+    //
+    //                 if direction[i] == instr.quality {
+    //                     // If the direction has not changed, it may be pushed without interruption
+    //                     // try_push will always succeed because we just checked CountedSqrWav::ready
+    //                     run_on_channel!(i, CountedSqrWav::try_push, instr.quantity);
+    //                 } else {
+    //                     // Place the instruction back to the buffer if it was not executed
+    //                     let _ = mem::replace(&mut cur_buf[i], Some(instr));
+    //                 }
+    //             } else if run_on_channel!(i, CountedSqrWav::stopped) {
+    //                 // If there are no instructions, and the remaining instruction is completed, the channel will be disabled
+    //                 chs[i].enable.set_high();
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 #[embassy_executor::task(pool_size = DRIVERS)]
@@ -187,18 +157,23 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
 #[embassy_executor::main]
 async fn main0(spawner: Spawner) {
     all_checks();
-    // Initialise Peripherals
-    info!("Initialising Peripherals");
-    let p = PERIPH.init(embassy_rp::init(Default::default()));
-
     // Once again, a single-purpose buffer that should not be allocated at runtime, so
     // it is allocated as a static mutable reference (unsafe)
     #[allow(static_mut_refs)]
     let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
 
-    let mut board = Board::init(p, serial_buffers);
+    // Initialise Peripherals
+    info!("Initialising Peripherals");
+
+    #[cfg(feature = "raspberry")]
+    let mut board = {
+        use crate::board::raspberry::Board;
+        Board::init(serial_buffers)
+    };
+
     #[cfg(feature = "configurable_driver")]
     {
+        use crate::board::ConfigurableDriver;
         board.configure_driver().await;
     }
     info!("Peripherals Initialised");
@@ -234,7 +209,7 @@ async fn main0(spawner: Spawner) {
 
     {
         let mut i = 0;
-        for stop in board.end_stops {
+        for stop in board.end_stops.unwrap() {
             let _ = spawner.spawn(stop_detector(i, stop));
             i += 1;
         }

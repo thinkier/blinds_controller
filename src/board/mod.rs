@@ -1,19 +1,9 @@
-#[cfg(feature = "btt_skr_pico_v1_0")]
-mod btt_skr_pico_v1_0;
-/// Supporting module to emulate the square wave generation capability on STM ACT peripheral
-/// using RP PIO State machines
-mod rp_act;
+#[cfg(feature = "raspberry")]
+pub mod raspberry;
 #[cfg(feature = "tmc2209")]
 pub mod tmc2209;
 
-use embassy_rp::gpio::{Input, Output};
-pub use rp_act::counted_sqr_wav_pio::*;
-
-pub struct DriverPins<'a> {
-    pub enable: Output<'a>,
-    // pub step: Output<'a>,
-    pub dir: Output<'a>,
-}
+use embedded_io::{Read, Write};
 
 pub struct SerialBuffers {
     driver_tx_buf: [u8; 32],
@@ -33,9 +23,26 @@ impl SerialBuffers {
     }
 }
 
-pub struct Board<'a, const N: usize, D, H> {
-    pub end_stops: [Input<'a>; N],
-    pub drivers: [DriverPins<'a>; N],
-    pub driver_serial: D,
-    pub host_serial: H,
+pub trait StepStickBoard {
+    fn set_ena(&mut self, channel: usize, enabled: bool);
+    fn set_dir(&mut self, channel: usize, invert: bool);
+    fn ready(&mut self, channel: usize) -> bool;
+    fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool>;
+    fn clear_steps(&mut self, channel: usize);
+}
+
+pub trait EndStopBoard: StepStickBoard {
+    async fn end_stop(&mut self, channel: usize);
+}
+
+#[cfg(feature = "configurable_driver")]
+pub trait ConfigurableBoard<const N: usize> {
+    type DriverSerial: Read + Write;
+
+    fn driver_serial(&mut self) -> &mut Self::DriverSerial;
+}
+
+#[cfg(feature = "configurable_driver")]
+pub trait ConfigurableDriver<S, const N: usize> {
+    async fn configure_driver(&mut self);
 }

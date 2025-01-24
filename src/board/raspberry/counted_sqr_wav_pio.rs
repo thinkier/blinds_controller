@@ -52,7 +52,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     pub fn new(
         pio: &mut Common<'a, PIO>,
         sm: &'a mut StateMachine<'a, PIO, SM>,
-        pin: impl PioPin,
+        pin: &'a mut impl PioPin,
         program: &'a CountedSqrWavProgram<'a, PIO>,
         frequency: u16,
     ) -> Self {
@@ -69,7 +69,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
         Self { sm }
     }
 
-    pub fn kill(&mut self) {
+    pub fn clear(&mut self) {
         self.sm.set_enable(false);
         self.sm.restart();
     }

@@ -1,16 +1,19 @@
-use crate::board::Board;
+use crate::board::{ConfigurableBoard, ConfigurableDriver};
 use defmt::*;
 use embassy_time::Timer;
-use embedded_io::{Read, Write};
+use embedded_io::{ErrorType, Read, Write};
 use tmc2209::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
 use tmc2209::{await_read, send_read_request, send_write_request};
 
-impl<'a, const N: usize, D, S> Board<'a, N, D, S>
+impl<B, S, const N: usize> ConfigurableDriver<S, N> for B
 where
-    D: Write + Read,
-    D::Error: Format,
+    B: ConfigurableBoard<N, DriverSerial = S>,
+    S: Read + Write,
+    <S as ErrorType>::Error: Format,
 {
-    pub async fn configure_driver(&mut self) {
+    async fn configure_driver(&mut self) {
+        let ser = self.driver_serial();
+
         let mut gconf = GCONF::default();
         gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
@@ -23,30 +26,30 @@ where
         let sgthrs = SGTHRS(100);
 
         for addr in 0..N as u8 {
-            if let Err(e) = send_write_request(addr, gconf, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, gconf, ser) {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, chop, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, chop, ser) {
                 warn!("Failed to program CHOPCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, tcoolthrs, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, tcoolthrs, ser) {
                 warn!("Failed to program TCOOLTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, tpwmthrs, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, tpwmthrs, ser) {
                 warn!("Failed to program TPWMTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, slaveconf, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, slaveconf, ser) {
                 warn!("Failed to program SLAVECONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, coolconf, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, coolconf, ser) {
                 warn!("Failed to program COOLCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, sgthrs, &mut self.driver_serial) {
+            if let Err(e) = send_write_request(addr, sgthrs, ser) {
                 warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
             }
 
             for _ in 0..7 {
-                self.driver_serial.sink_write_packet().await;
+                ser.sink_write_packet().await;
             }
             Timer::after_millis(50).await;
         }

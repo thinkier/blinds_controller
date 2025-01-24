@@ -5,12 +5,13 @@ edition = "2021"
 
 [features]
 default = ["btt_skr_pico_v1_0"]
+btt_skr_pico_v1_0 = ["raspberry", "embassy-rp/rp2040", "portable-atomic/critical-section", "tmc2209"]
+raspberry = ["dep:cortex-m-rt", "dep:embassy-rp", "dep:pio-proc", "dep:pio"]
 tmc2209 = ["dep:tmc2209", "configurable_driver"]
-btt_skr_pico_v1_0 = ["embassy-rp/rp2040", "tmc2209"]
-configurable_driver = []
+configurable_driver = ["dep:embedded-io"]
 
 [dependencies]
-cortex-m-rt = "0.7"
+cortex-m-rt = { version = "0.7", optional = true }
 
 defmt = "0.3"
 defmt-rtt = "0.4"
@@ -19,16 +20,16 @@ panic-probe = { version = "0.3", features = ["print-defmt"] }
 fixed = "1"
 embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { version = "0.3", features = ["defmt", "rt", "time-driver", "critical-section-impl"] }
-pio-proc = "0.2"
-pio = "0.2"
+embassy-rp = { version = "0.3", optional = true, features = ["defmt", "rt", "time-driver", "critical-section-impl"] }
+pio-proc = { version = "0.2", optional = true }
+pio = { version = "0.2", optional = true }
 
-embedded-io = { version = "0.6", features = ["defmt-03"] }
+embedded-io = { version = "0.6", optional = true, features = ["defmt-03"] }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
 static_cell = "2"
-portable-atomic = { version = "1.10", features = ["critical-section"] }
+portable-atomic = { version = "1.10" }
 critical-section = "1"
 
 serde = { version = "1", default-features = false, features = ["derive"] }
