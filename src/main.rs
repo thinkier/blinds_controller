@@ -18,6 +18,7 @@ use core::mem;
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::{Executor, Spawner};
+use embassy_rp::gpio::Input;
 use embassy_rp::multicore::{spawn_core1, Stack};
 use embassy_rp::peripherals::{CORE1, PIN_11, PIN_14, PIN_19, PIN_6, PIO0, WATCHDOG};
 use embassy_rp::pio::{InterruptHandler, Pio};
@@ -106,7 +107,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     loop {
         ticker.next().await;
 
-        let reversal = REVERSALS.load(Ordering::Relaxed);
+        let reversal = REVERSALS.load(Ordering::Acquire);
         for i in 0..DRIVERS {
             if cur_buf[i].is_none() {
                 cur_buf[i] = LOOK_AHEAD_BUFFER.take(i);
@@ -118,7 +119,7 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
             }
         }
 
-        let stops = STOPS.swap(0, Ordering::Relaxed);
+        let stops = STOPS.swap(0, Ordering::AcqRel);
         let now = Instant::now();
         for i in 0..DRIVERS {
             if (stops << i) & 1 != 0 {
@@ -173,8 +174,18 @@ async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
     }
 }
 
+#[embassy_executor::task(pool_size = DRIVERS)]
+async fn stop_detector(i: usize, mut input: Input<'static>) {
+    loop {
+        input.wait_for_high().await;
+        STOPS.bit_set(i as u32, Ordering::Release);
+        defmt::warn!("Stall detected on {}", i);
+        input.wait_for_low().await;
+    }
+}
+
 #[embassy_executor::main]
-async fn main0(_spawner: Spawner) {
+async fn main0(spawner: Spawner) {
     all_checks();
     // Initialise Peripherals
     info!("Initialising Peripherals");
@@ -220,6 +231,14 @@ async fn main0(_spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
     ]);
+
+    {
+        let mut i = 0;
+        for stop in board.end_stops {
+            let _ = spawner.spawn(stop_detector(i, stop));
+            i += 1;
+        }
+    }
 
     loop {
         Timer::after_millis(250).await;
@@ -282,20 +301,12 @@ async fn main0(_spawner: Spawner) {
             }
         }
 
-        let mut stops = 0;
         for i in 0..DRIVERS {
             if !LOOK_AHEAD_BUFFER.has(i) {
                 if let Some(instr) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
                     LOOK_AHEAD_BUFFER.put(i, instr);
                 }
             }
-
-            if board.end_stops[i].is_high() {
-                stops |= 1 << i;
-                defmt::warn!("Stall detected on {}", i);
-                loop {}
-            }
         }
-        STOPS.or(stops, Ordering::Relaxed);
     }
 }
