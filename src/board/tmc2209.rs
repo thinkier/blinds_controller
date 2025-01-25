@@ -1,9 +1,12 @@
-use crate::board::{ConfigurableBoard, ConfigurableDriver};
+use crate::board::{ConfigurableBoard, ConfigurableDriver, SoftHalfDuplex, StallGuard};
 use defmt::*;
 use embassy_time::Timer;
 use embedded_io::{ErrorType, Read, Write};
 use tmc2209::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
 use tmc2209::{await_read, send_read_request, send_write_request};
+
+const DATAGRAM_SIZE_READ_REQ: usize = 4;
+const DATAGRAM_SIZE_WRITE_REQ: usize = 8;
 
 impl<B, S, const N: usize> ConfigurableDriver<S, N> for B
 where
@@ -49,74 +52,47 @@ where
             }
 
             for _ in 0..7 {
-                ser.sink_write_packet().await;
+                ser.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
             }
             Timer::after_millis(50).await;
         }
     }
 }
 
-pub trait SetSgthrs {
-    fn set_sgthrs(&mut self, addr: u8, sgthrs: u8);
-}
-
-impl<W> SetSgthrs for W
+impl<B, S, const N: usize> StallGuard<S, N> for B
 where
-    W: Write + Read,
-    W::Error: defmt::Format,
-{
-    fn set_sgthrs(&mut self, addr: u8, sgthrs: u8) {
-        let sgthrs = SGTHRS(sgthrs as u32);
-        if let Err(e) = send_write_request(addr, sgthrs, self) {
-            warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
-        }
-        let _ = self.sink_write_packet();
-    }
-}
-
-pub trait SingleLineCommunication {
-    async fn sink_write_packet(&mut self);
-    async fn sink_read_req_packet(&mut self);
-}
-
-impl<S> SingleLineCommunication for S
-where
+    B: ConfigurableBoard<N, DriverSerial = S>,
     S: Read + Write,
-    S::Error: defmt::Format,
+    <S as ErrorType>::Error: Format,
 {
-    async fn sink_write_packet(&mut self) {
-        Timer::after_millis(50).await;
-        let _ = self.flush();
-        let _ = self.read_exact(&mut [0u8; 8]);
-    }
-    async fn sink_read_req_packet(&mut self) {
-        Timer::after_millis(50).await;
-        let _ = self.flush();
-        let _ = self.read_exact(&mut [0u8; 4]);
-    }
-}
+    async fn set_sg_threshold(&mut self, channel: usize, sgthrs: u8) {
+        let serial = self.driver_serial();
 
-pub trait ReadSgDiagnostics {
-    async fn read_sg_diagnostics(&mut self, addr: u8);
-}
-
-impl<S> ReadSgDiagnostics for S
-where
-    S: Write + Read,
-    S::Error: defmt::Format,
-{
-    async fn read_sg_diagnostics(&mut self, addr: u8) {
-        if let Err(e) = send_read_request::<SG_RESULT, _>(addr, self) {
-            defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", addr, e);
+        let sgthrs = SGTHRS(sgthrs as u32);
+        if let Err(e) = send_write_request(channel as u8, sgthrs, serial) {
+            warn!("Failed to program SGTHRS on addr {}: {:?}", channel, e);
         }
-        self.sink_read_req_packet().await;
+        let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
+    }
 
-        match await_read::<SG_RESULT, _>(self) {
+    /// For API-compatibility with other StallGuard drivers, this function returns a halved SG_RESULT value
+    async fn get_sg_result(&mut self, channel: usize) -> Option<u8> {
+        let serial = self.driver_serial();
+
+        if let Err(e) = send_read_request::<SG_RESULT, _>(channel as u8, serial) {
+            defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", channel, e);
+            return None;
+        }
+        let _ = serial.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
+
+        match await_read::<SG_RESULT, _>(serial) {
             Ok(sg_result) => {
-                defmt::info!("SG_RESULT/2 on addr {}: {}", addr, sg_result.get() / 2);
+                defmt::info!("SG_RESULT/2 on addr {}: {}", channel, sg_result.get() / 2);
+                Some((sg_result.get() / 2) as u8)
             }
             Err(_) => {
-                defmt::warn!("Failed to read SG_RESULT on addr {}", addr);
+                defmt::warn!("Failed to read SG_RESULT on addr {}", channel);
+                None
             }
         }
     }

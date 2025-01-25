@@ -3,12 +3,14 @@ use crate::board::raspberry::{Board, DriverPins};
 use crate::board::{ConfigurableBoard, SerialBuffers};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::{PIO0, PIO1, UART0, UART1};
+use embassy_rp::peripherals::{PIO0, PIO1, UART0, UART1, WATCHDOG};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config, Uart};
 use embassy_rp::Peripherals;
+use embassy_rp::watchdog::Watchdog;
 use embedded_io::{Read, Write};
 use static_cell::StaticCell;
+use crate::comms::RpcHandle;
 
 pub const FREQUENCY: u16 = 1000;
 
@@ -70,13 +72,14 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
                 &mut serial_buffers.host_tx_buf,
                 &mut serial_buffers.host_rx_buf,
             );
+        let host_rpc = RpcHandle::new(host_serial, Watchdog::new(unsafe { WATCHDOG::steal() }));
 
-        let end_stops = Some([
-            Input::new(&mut p.PIN_4, Pull::Down),
-            Input::new(&mut p.PIN_25, Pull::Down),
-            Input::new(&mut p.PIN_3, Pull::Down),
-            Input::new(&mut p.PIN_16, Pull::Down),
-        ]);
+        let end_stops = [
+            Some(Input::new(&mut p.PIN_4, Pull::Down)),
+            Some(Input::new(&mut p.PIN_25, Pull::Down)),
+            Some(Input::new(&mut p.PIN_3, Pull::Down)),
+            Some(Input::new(&mut p.PIN_16, Pull::Down)),
+        ];
         let driver = [
             DriverPins {
                 enable: Output::new(&mut p.PIN_12, Level::High),
@@ -104,7 +107,7 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             end_stops,
             drivers: driver,
             driver_serial,
-            host_serial,
+            host_rpc,
             pio0_0: Some(pio0_0),
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),

@@ -5,10 +5,13 @@ edition = "2021"
 
 [features]
 default = ["btt_skr_pico_v1_0"]
-btt_skr_pico_v1_0 = ["raspberry", "embassy-rp/rp2040", "portable-atomic/critical-section", "tmc2209"]
-raspberry = ["dep:cortex-m-rt", "dep:embassy-rp", "dep:pio-proc", "dep:pio"]
-tmc2209 = ["dep:tmc2209", "configurable_driver"]
+btt_skr_pico_v1_0 = ["rp2040", "tmc2209"]
+rp2040 = ["dep:critical-section", "raspberry", "embassy-rp/rp2040", "portable-atomic/critical-section"]
+raspberry = ["dep:cortex-m-rt", "dep:embassy-rp", "dep:pio-proc", "dep:pio", "software_half_duplex_uart"]
+tmc2209 = ["dep:tmc2209", "configurable_driver", "stallguard"]
 configurable_driver = ["dep:embedded-io"]
+software_half_duplex_uart = []
+stallguard = []
 
 [dependencies]
 cortex-m-rt = { version = "0.7", optional = true }
@@ -30,7 +33,7 @@ tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
 static_cell = "2"
 portable-atomic = { version = "1.10" }
-critical-section = "1"
+critical-section = { version = "1", optional = true }
 
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", features = ["defmt"] }

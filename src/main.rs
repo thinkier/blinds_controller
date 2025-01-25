@@ -5,154 +5,30 @@ mod board;
 mod checks;
 mod comms;
 
-use crate::board::raspberry::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
-use crate::board::raspberry::DriverPins;
-use crate::board::tmc2209::{ReadSgDiagnostics, SetSgthrs};
 use crate::board::*;
 use crate::checks::all_checks;
-use crate::comms::{IncomingRpcPacket, InstructionBuffer, OutgoingRpcPacket, RpcHandle};
+use crate::comms::{IncomingRpcPacket, OutgoingRpcPacket};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
 };
 use core::mem;
+use core::ptr::without_provenance;
 use core::sync::atomic::Ordering;
 use defmt::*;
-use embassy_executor::{Executor, Spawner};
-use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::Input;
-use embassy_rp::multicore::{spawn_core1, Stack};
-use embassy_rp::peripherals::{CORE1, PIO0, PIO1, WATCHDOG};
-use embassy_rp::pio::{InterruptHandler, Pio};
-use embassy_rp::watchdog::Watchdog;
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_executor::Spawner;
+use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::AtomicU8;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
-static CORE1_EXECUTOR: StaticCell<Executor> = StaticCell::new();
-static mut CORE1_STACK: Stack<8192> = Stack::new();
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
 static STOPS: AtomicU8 = AtomicU8::new(0);
-type IBuf = InstructionBuffer<WindowDressingInstruction, DRIVERS>;
-static LOOK_AHEAD_BUFFER: IBuf = IBuf::new();
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
-static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; 4]> = StaticCell::new();
-static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
-static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
+static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; DRIVERS]> = StaticCell::new();
 
 pub const DRIVERS: usize = 4;
 pub const FREQUENCY: u16 = 1000;
-
-bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
-    PIO1_IRQ_0 => InterruptHandler<PIO1>;
-});
-
-// A shame that I can't use a const generic here to fit to the number of drivers according to the BSP
-#[embassy_executor::task]
-async fn main1(mut chs: [DriverPins<'static>; DRIVERS]) {
-    macro_rules! run_on_channel {
-        ($ch:expr, $run:path $(,$args:expr)*) => {
-            match $ch {
-                0 => $run(&mut ch0 $(,$args)*),
-                1 => $run(&mut ch1 $(,$args)*),
-                2 => $run(&mut ch2 $(,$args)*),
-                3 => $run(&mut ch3 $(,$args)*),
-                _ => defmt::unreachable!(
-                    "Is there more than {} channels for this board?",
-                    DRIVERS
-                ),
-            }
-        };
-    }
-
-    // Limit the ticks to prevent lock starvation
-    let mut ticker = Ticker::every(Duration::from_micros(100));
-
-    let mut direction: [Direction; DRIVERS] = [Direction::Hold; DRIVERS];
-    let mut ready_at: [Instant; DRIVERS] = [Instant::now(); DRIVERS];
-    let mut cur_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
-
-    // loop {
-    //     ticker.next().await;
-    //
-    //     let reversal = REVERSALS.load(Ordering::Acquire);
-    //     for i in 0..DRIVERS {
-    //         if cur_buf[i].is_none() {
-    //             cur_buf[i] = LOOK_AHEAD_BUFFER.take(i);
-    //             cur_buf[i].iter_mut().for_each(|instr| {
-    //                 if (reversal >> i) & 1 != 0 {
-    //                     instr.quality = instr.quality.reverse();
-    //                 }
-    //             });
-    //         }
-    //     }
-    //
-    //     let stops = STOPS.swap(0, Ordering::AcqRel);
-    //     let now = Instant::now();
-    //     for i in 0..DRIVERS {
-    //         if (stops << i) & 1 != 0 {
-    //             direction[i] = Direction::Hold;
-    //             cur_buf[i] = None;
-    //             run_on_channel!(i, CountedSqrWav::clear);
-    //         }
-    //
-    //         // Skip if the channel isn't ready
-    //         if now < ready_at[i] {
-    //             continue;
-    //         }
-    //
-    //         if run_on_channel!(i, CountedSqrWav::ready) {
-    //             if let Some(instr) = mem::replace(&mut cur_buf[i], None) {
-    //                 chs[i].enable.set_low();
-    //                 if run_on_channel!(i, CountedSqrWav::stopped) {
-    //                     // Direction changes may only occur when the channel is no longer producing phases
-    //                     direction[i] = instr.quality;
-    //
-    //                     match instr.quality {
-    //                         Direction::Hold => {
-    //                             // Hold instructions are handled by CPU clock instants
-    //                             let ready = Duration::from_micros(
-    //                                 1_000_000 * instr.quantity as u64 / FREQUENCY as u64,
-    //                             );
-    //                             ready_at[i] = now + ready;
-    //
-    //                             // Stop further commands on the PIO SMs & move on to the next channel
-    //                             // Also stops the instruction being placed back into the buffer (as this block handles it)
-    //                             continue;
-    //                         }
-    //                         Direction::Retract => chs[i].dir.set_high(),
-    //                         Direction::Extend => chs[i].dir.set_low(),
-    //                     }
-    //                 }
-    //
-    //                 if direction[i] == instr.quality {
-    //                     // If the direction has not changed, it may be pushed without interruption
-    //                     // try_push will always succeed because we just checked CountedSqrWav::ready
-    //                     run_on_channel!(i, CountedSqrWav::try_push, instr.quantity);
-    //                 } else {
-    //                     // Place the instruction back to the buffer if it was not executed
-    //                     let _ = mem::replace(&mut cur_buf[i], Some(instr));
-    //                 }
-    //             } else if run_on_channel!(i, CountedSqrWav::stopped) {
-    //                 // If there are no instructions, and the remaining instruction is completed, the channel will be disabled
-    //                 chs[i].enable.set_high();
-    //             }
-    //         }
-    //     }
-    // }
-}
-
-#[embassy_executor::task(pool_size = DRIVERS)]
-async fn stop_detector(i: usize, mut input: Input<'static>) {
-    loop {
-        input.wait_for_high().await;
-        STOPS.bit_set(i as u32, Ordering::Release);
-        defmt::warn!("Stall detected on {}", i);
-        input.wait_for_low().await;
-    }
-}
 
 #[embassy_executor::main]
 async fn main0(spawner: Spawner) {
@@ -171,6 +47,8 @@ async fn main0(spawner: Spawner) {
         Board::init(serial_buffers)
     };
 
+    board.bind_endstops(spawner);
+
     #[cfg(feature = "configurable_driver")]
     {
         use crate::board::ConfigurableDriver;
@@ -178,27 +56,7 @@ async fn main0(spawner: Spawner) {
     }
     info!("Peripherals Initialised");
 
-    {
-        // Have to unsafely steal core1 because the spawner takes ownership it,
-        // and by extension, all the peripherals that were meant to be references
-        // so it will throw a whole spanner in the works on the BSP module I've just refactored out
-        let core1 = unsafe { CORE1::steal() };
-        // Not practical to use a StaticCell to allocate and reference the new stack safely due to
-        // concerns around stack overflow with such a big chunk being thrown around, plus runtime
-        // initialization of the stack provides no benefits as opposed to compile-time initialization
-        // perhaps other than not needing the unsafe keyword
-        #[allow(static_mut_refs)]
-        let core1_stack = unsafe { &mut CORE1_STACK };
-
-        spawn_core1(core1, core1_stack, || {
-            let core1_executor = CORE1_EXECUTOR.init(Executor::new());
-            core1_executor.run(|spawner| spawner.spawn(main1(board.drivers)).unwrap())
-        });
-    }
-
-    let wdt = Watchdog::new(unsafe { WATCHDOG::steal() });
-    let mut rpc = RpcHandle::<256, _>::new(board.host_serial, wdt);
-    let _ = rpc.write(&OutgoingRpcPacket::Ready {});
+    let _ = board.host_rpc.write(&OutgoingRpcPacket::Ready {});
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
@@ -207,22 +65,10 @@ async fn main0(spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
     ]);
 
-    {
-        let mut i = 0;
-        for stop in board.end_stops.unwrap() {
-            let _ = spawner.spawn(stop_detector(i, stop));
-            i += 1;
-        }
-    }
-
     loop {
         Timer::after_millis(250).await;
-        // for i in 0..DRIVERS {
-        let i = 0;
-        board.driver_serial.read_sg_diagnostics(i as u8).await;
-        //     Timer::after_millis(10).await;
-        // }
-        match rpc.read() {
+
+        match board.host_rpc.read() {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
                     seq[channel as usize].home_fully_opened();
@@ -247,7 +93,7 @@ async fn main0(spawner: Spawner) {
                     }
 
                     if let Some(sgthrs) = sgthrs {
-                        board.driver_serial.set_sgthrs(channel, sgthrs);
+                        board.set_sg_threshold(channel as usize, sgthrs).await;
                     }
                 }
                 IncomingRpcPacket::Set {
@@ -259,12 +105,22 @@ async fn main0(spawner: Spawner) {
                     tilt.map(|t| seq[channel as usize].set_tilt(t));
                 }
                 IncomingRpcPacket::Get { channel } => {
-                    if let Err(e) = rpc.write(&OutgoingRpcPacket::Position {
+                    let out = OutgoingRpcPacket::Position {
                         channel,
                         current: *seq[channel as usize].get_current_state(),
                         desired: *seq[channel as usize].get_desired_state(),
-                    }) {
+                    };
+
+                    if let Err(e) = board.host_rpc.write(&out) {
                         error!("Failed to write Position: {:?}", e);
+                    }
+                }
+                IncomingRpcPacket::GetStallGuardResult { channel } => {
+                    let sg_result = board.get_sg_result(channel as usize).await.unwrap_or(0);
+                    let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
+
+                    if let Err(e) = board.host_rpc.write(&out) {
+                        error!("Failed to write StallGuardResult: {:?}", e);
                     }
                 }
             },
@@ -276,10 +132,57 @@ async fn main0(spawner: Spawner) {
             }
         }
 
+        let mut next_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
+        let mut next_marker = [Instant::now(); DRIVERS];
+        let mut cur_direction = [Direction::Hold; DRIVERS];
+        let stops = STOPS.swap(0, Ordering::AcqRel);
+
         for i in 0..DRIVERS {
-            if !LOOK_AHEAD_BUFFER.has(i) {
-                if let Some(instr) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
-                    LOOK_AHEAD_BUFFER.put(i, instr);
+            let now = Instant::now();
+
+            if (stops >> i) & 0b1 == 1 {
+                seq[i].trig_endstop();
+                next_buf[i] = None;
+                board.clear_steps(i);
+                board.set_enabled(i, false);
+                continue;
+            }
+
+            if board.is_ready_for_steps(i) {
+                if let Some(instr) = mem::replace(&mut next_buf[i], None) {
+                    if board.is_stopped(i) {
+                        cur_direction[i] = instr.quality;
+
+                        match instr.quality {
+                            Direction::Hold => {
+                                let offset = Duration::from_micros(
+                                    (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
+                                );
+                                next_marker[i] = now + offset;
+
+                                // Stop further commands on the PIO SMs & move on to the next channel
+                                // Also stops the instruction being placed back into the buffer (as this block handles it)
+                                continue;
+                            }
+                            Direction::Retract => board.set_direction(
+                                i,
+                                (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 1,
+                            ),
+                            Direction::Extend => board.set_direction(
+                                i,
+                                (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0,
+                            ),
+                        }
+                        board.add_steps(i, instr.quantity);
+                    } else if instr.quality == cur_direction[i] {
+                        board.add_steps(i, instr.quantity);
+                    } else {
+                        let _ = mem::replace(&mut next_buf[i], Some(instr));
+                    }
+                } else if let Some(next) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
+                    next_buf[i] = Some(next);
+                } else if board.is_stopped(i) {
+                    board.set_enabled(i, false);
                 }
             }
         }

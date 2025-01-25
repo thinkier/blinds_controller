@@ -99,6 +99,7 @@ pub enum IncomingRpcPacket {
         full_cycle_steps: u32,
         reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
+        #[cfg(feature = "stallguard")]
         sgthrs: Option<u8>,
     },
     Set {
@@ -107,6 +108,10 @@ pub enum IncomingRpcPacket {
         tilt: Option<i8>,
     },
     Get {
+        channel: u8,
+    },
+    #[cfg(feature = "stallguard")]
+    GetStallGuardResult {
         channel: u8,
     },
 }
@@ -119,5 +124,10 @@ pub enum OutgoingRpcPacket {
         channel: u8,
         current: WindowDressingState,
         desired: WindowDressingState,
+    },
+    #[cfg(feature = "stallguard")]
+    StallGuardResult {
+        channel: u8,
+        sg_result: u8
     },
 }

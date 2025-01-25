@@ -3,6 +3,7 @@ pub mod raspberry;
 #[cfg(feature = "tmc2209")]
 pub mod tmc2209;
 
+use embassy_executor::Spawner;
 use embedded_io::{Read, Write};
 
 pub struct SerialBuffers {
@@ -24,15 +25,16 @@ impl SerialBuffers {
 }
 
 pub trait StepStickBoard {
-    fn set_ena(&mut self, channel: usize, enabled: bool);
-    fn set_dir(&mut self, channel: usize, invert: bool);
-    fn ready(&mut self, channel: usize) -> bool;
+    fn set_enabled(&mut self, channel: usize, enabled: bool);
+    fn set_direction(&mut self, channel: usize, invert: bool);
+    fn is_stopped(&mut self, channel: usize) -> bool;
+    fn is_ready_for_steps(&mut self, channel: usize) -> bool;
     fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool>;
     fn clear_steps(&mut self, channel: usize);
 }
 
-pub trait EndStopBoard: StepStickBoard {
-    async fn end_stop(&mut self, channel: usize);
+pub trait EndStopBoard {
+    fn bind_endstops(&mut self, spawner: Spawner);
 }
 
 #[cfg(feature = "configurable_driver")]
@@ -45,4 +47,40 @@ pub trait ConfigurableBoard<const N: usize> {
 #[cfg(feature = "configurable_driver")]
 pub trait ConfigurableDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
+}
+
+#[cfg(feature = "stallguard")]
+pub trait StallGuard<S, const N: usize> {
+    /// StallGuard Threshold, scaled back to 8 bits
+    async fn set_sg_threshold(&mut self, channel: usize, sgthrs: u8);
+    /// StallGuard result, scaled back to 8 bits
+    async fn get_sg_result(&mut self, channel: usize) -> Option<u8>;
+}
+
+trait SoftHalfDuplex {
+    async fn flush_clear<const N: usize>(&mut self);
+}
+
+impl<S> SoftHalfDuplex for S
+where
+    S: Read + Write,
+    S::Error: defmt::Format,
+{
+    /// If the hardware doesn't support blocking out the TX bytes,
+    /// then this function consumes those bytes that got echoed back on the RX line.
+    ///
+    /// e.g.
+    /// - `embassy-rp` does not support half duplex UART
+    /// - `embassy-stm32` supports half duplex USART
+    #[inline]
+    async fn flush_clear<const N: usize>(&mut self) {
+        #[cfg(feature = "software_half_duplex_uart")]
+        {
+            use embassy_time::Timer;
+
+            Timer::after_millis(50).await;
+            let _ = self.flush();
+            let _ = self.read_exact(&mut [0u8; N]);
+        }
+    }
 }
