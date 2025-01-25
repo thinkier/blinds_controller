@@ -13,7 +13,6 @@ use blinds_sequencer::{
     WindowDressingSequencer,
 };
 use core::mem;
-use core::ptr::without_provenance;
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
