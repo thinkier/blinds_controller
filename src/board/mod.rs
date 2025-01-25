@@ -24,6 +24,7 @@ impl SerialBuffers {
     }
 }
 
+#[allow(clippy::wrong_self_convention)]
 pub trait StepStickBoard {
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
