@@ -71,6 +71,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
 
     pub fn clear(&mut self) {
         self.sm.set_enable(false);
+        self.sm.clear_fifos();
         self.sm.restart();
     }
 

@@ -129,7 +129,6 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
     loop {
         input.wait_for_high().await;
         STOPS.bit_set(i as u32, Ordering::Release);
-        defmt::warn!("Stall detected on {}", i);
         input.wait_for_low().await;
     }
 }

@@ -30,7 +30,7 @@ pub const DRIVERS: usize = 4;
 pub const FREQUENCY: u16 = 1000;
 
 #[embassy_executor::main]
-async fn main0(spawner: Spawner) {
+async fn main(spawner: Spawner) {
     all_checks();
     // Once again, a single-purpose buffer that should not be allocated at runtime, so
     // it is allocated as a static mutable reference (unsafe)
@@ -63,6 +63,10 @@ async fn main0(spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
     ]);
+    let mut next_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
+    let mut next_resume = [Instant::now(); DRIVERS];
+    let mut last_reversal = [Instant::now(); DRIVERS];
+    let mut cur_direction = [Direction::Hold; DRIVERS];
 
     loop {
         Timer::after_millis(250).await;
@@ -131,15 +135,13 @@ async fn main0(spawner: Spawner) {
             }
         }
 
-        let mut next_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
-        let mut next_marker = [Instant::now(); DRIVERS];
-        let mut cur_direction = [Direction::Hold; DRIVERS];
         let stops = STOPS.swap(0, Ordering::AcqRel);
 
         for i in 0..DRIVERS {
             let now = Instant::now();
 
-            if (stops >> i) & 0b1 == 1 {
+            if (stops >> i) & 0b1 == 1 && last_reversal[i] < now + Duration::from_millis(500) {
+                defmt::info!("Endstop triggered");
                 seq[i].trig_endstop();
                 next_buf[i] = None;
                 board.clear_steps(i);
@@ -149,15 +151,20 @@ async fn main0(spawner: Spawner) {
 
             if board.is_ready_for_steps(i) {
                 if let Some(instr) = mem::replace(&mut next_buf[i], None) {
-                    if board.is_stopped(i) {
+                    board.set_enabled(i, true);
+                    if instr.quality == cur_direction[i] {
+                        board.add_steps(i, instr.quantity);
+                        next_buf[i] = None;
+                    } else if board.is_stopped(i) && next_resume[i] < now {
                         cur_direction[i] = instr.quality;
+                        last_reversal[i] = now;
 
                         match instr.quality {
                             Direction::Hold => {
                                 let offset = Duration::from_micros(
                                     (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
                                 );
-                                next_marker[i] = now + offset;
+                                next_resume[i] = now + offset;
 
                                 // Stop further commands on the PIO SMs & move on to the next channel
                                 // Also stops the instruction being placed back into the buffer (as this block handles it)
@@ -173,8 +180,7 @@ async fn main0(spawner: Spawner) {
                             ),
                         }
                         board.add_steps(i, instr.quantity);
-                    } else if instr.quality == cur_direction[i] {
-                        board.add_steps(i, instr.quantity);
+                        next_buf[i] = None;
                     } else {
                         let _ = mem::replace(&mut next_buf[i], Some(instr));
                     }
