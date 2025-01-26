@@ -1,8 +1,8 @@
-use core::mem;
 use crate::board::raspberry::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{EndStopBoard, StepStickBoard};
 use crate::comms::RpcHandle;
 use crate::{DRIVERS, STOPS};
+use core::mem;
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
@@ -80,6 +80,10 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
     }
 
     fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool> {
+        if steps == 0 {
+            return None;
+        }
+
         match channel {
             0 => self.pio0_0.as_mut().map(|p| p.try_push(steps)),
             1 => self.pio0_1.as_mut().map(|p| p.try_push(steps)),
@@ -107,7 +111,6 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
         };
     }
 }
-
 
 impl<const N: usize, D, H> EndStopBoard for Board<'static, N, D, H> {
     fn bind_endstops(&mut self, spawner: Spawner) {

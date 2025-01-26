@@ -154,7 +154,6 @@ async fn main(spawner: Spawner) {
                     board.set_enabled(i, true);
                     if instr.quality == cur_direction[i] {
                         board.add_steps(i, instr.quantity);
-                        next_buf[i] = None;
                     } else if board.is_stopped(i) && next_resume[i] < now {
                         cur_direction[i] = instr.quality;
                         last_reversal[i] = now;
@@ -180,7 +179,6 @@ async fn main(spawner: Spawner) {
                             ),
                         }
                         board.add_steps(i, instr.quantity);
-                        next_buf[i] = None;
                     } else {
                         let _ = mem::replace(&mut next_buf[i], Some(instr));
                     }
