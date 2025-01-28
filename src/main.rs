@@ -37,9 +37,7 @@ async fn main(spawner: Spawner) {
     #[allow(static_mut_refs)]
     let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
 
-    // Initialise Peripherals
     info!("Initialising Peripherals");
-
     #[cfg(feature = "raspberry")]
     let mut board = {
         use crate::board::raspberry::Board;

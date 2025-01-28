@@ -3,7 +3,7 @@ use embassy_rp::gpio::Level;
 use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
 use fixed::traits::ToFixed;
 
-/// This program is intended to run on a 16:1 ratio i.e. 16 PIO cycles per output cycle
+/// This program is intended to run on a 10:1 ratio i.e. 10 PIO cycles per output cycle
 ///
 /// $$
 ///     \text{Output Frequency} = \frac{
