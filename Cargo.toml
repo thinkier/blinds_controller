@@ -8,7 +8,7 @@ default = ["btt_skr_pico_v1_0"]
 
 # MCU vendor configuration block
 raspberry = ["dep:cortex-m-rt", "dep:embassy-rp",
-    "dep:pio-proc", "dep:pio", # No ACT timer like the STM chips, implemented in PIO
+    "dep:pio-proc", "dep:pio", "dep:fixed", # No ACT timer like the STM chips, implemented in PIO
     "uart_soft_half_duplex" # No hardware readback prevention on UART
 ]
 stm32 = ["dep:cortex-m-rt", "dep:embassy-stm32"]
@@ -30,37 +30,47 @@ btt_manta_e3ez = ["stm32g0b1re", "tmc2209"]
 
 # Driver configuration block
 tmc2209 = ["dep:tmc2209", "configurable_driver", "stallguard"]
-configurable_driver = ["dep:embedded-io"]
+configurable_driver = []
 stallguard = []
 uart_soft_half_duplex = [] # Subtle peripheral issues
 uart_driver_shared_bus = [] # Subtle differences in board design
 
 [dependencies]
-cortex-m = { version = "0.7", optional = true }
-cortex-m-rt = { version = "0.7", optional = true }
-
+# Debug deps
 defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
-fixed = "1"
+# Runtime deps
+cortex-m-rt = { version = "0.7", optional = true }
 embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
+
+# Raspberry Silicon-specific deps
 embassy-rp = { version = "0.3", optional = true, features = ["defmt", "rt", "time-driver", "critical-section-impl"] }
-embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt"] }
 pio-proc = { version = "0.2", optional = true }
 pio = { version = "0.2", optional = true }
+fixed = { version = "1", optional = true }
 
-embedded-io = { version = "0.6", optional = true, features = ["defmt-03"] }
-blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
+# STMicroelectronics-specific deps
+embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "memory-x", "time"] }
+cortex-m = { version = "0.7", optional = true }
+
+# TMC2209 driver-specific deps
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
+# State management deps
+blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
+
+# RPC deps
+embedded-io = { version = "0.6", features = ["defmt-03"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde-json-core = { version = "0.6", features = ["defmt"] }
+
+# Memory management deps
 static_cell = "2"
 portable-atomic = { version = "1.10" }
 critical-section = { version = "1", optional = true }
-
-serde = { version = "1", default-features = false, features = ["derive"] }
-serde-json-core = { version = "0.6", features = ["defmt"] }
 
 [profile.release]
 lto = true
