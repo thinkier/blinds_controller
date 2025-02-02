@@ -126,7 +126,7 @@ where
 {
     type DriverSerial = D;
 
-    fn driver_serial(&mut self, _channel: u8) -> &mut Self::DriverSerial {
+    fn driver_serial(&mut self, _addr: u8) -> &mut Self::DriverSerial {
         &mut self.driver_serial
     }
 }

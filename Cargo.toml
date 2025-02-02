@@ -24,15 +24,16 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
 ]
 
 # Board configuration block
-btt_skr_pico_v1_0 = ["rp2040", "tmc2209"]
+btt_skr_pico_v1_0 = ["rp2040", "tmc2209", "uart_driver_shared_bus"]
 btt_manta_e3ez = ["stm32g0b1re", "tmc2209"]
 
 
 # Driver configuration block
 tmc2209 = ["dep:tmc2209", "configurable_driver", "stallguard"]
 configurable_driver = ["dep:embedded-io"]
-uart_soft_half_duplex = []
 stallguard = []
+uart_soft_half_duplex = [] # Subtle peripheral issues
+uart_driver_shared_bus = [] # Subtle differences in board design
 
 [dependencies]
 cortex-m = { version = "0.7", optional = true }

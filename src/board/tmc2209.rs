@@ -28,6 +28,8 @@ where
 
         for addr in 0..N as u8 {
             let ser = self.driver_serial(addr);
+            #[cfg(not(feature = "uart_driver_shared_bus"))]
+            let addr = 0;
 
             if let Err(e) = send_write_request(addr, gconf, ser) {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
@@ -66,23 +68,27 @@ where
     S: Read + Write,
     <S as ErrorType>::Error: Format,
 {
-    async fn set_sg_threshold(&mut self, channel: u8, sgthrs: u8) {
-        let serial = self.driver_serial(channel);
+    async fn set_sg_threshold(&mut self, addr: u8, sgthrs: u8) {
+        let serial = self.driver_serial(addr);
+        #[cfg(not(feature = "uart_driver_shared_bus"))]
+        let addr = 0;
 
         let sgthrs = SGTHRS(sgthrs as u32);
-        if let Err(e) = send_write_request(channel, sgthrs, serial) {
-            warn!("Failed to program SGTHRS on addr {}: {:?}", channel, e);
+        if let Err(e) = send_write_request(addr, sgthrs, serial) {
+            warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
         }
         #[cfg(feature = "uart_soft_half_duplex")]
         let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
     }
 
     /// For API-compatibility with other StallGuard drivers, this function returns a halved SG_RESULT value
-    async fn get_sg_result(&mut self, channel: u8) -> Option<u8> {
-        let serial = self.driver_serial(channel);
+    async fn get_sg_result(&mut self, addr: u8) -> Option<u8> {
+        let serial = self.driver_serial(addr);
+        #[cfg(not(feature = "uart_driver_shared_bus"))]
+        let addr = 0;
 
-        if let Err(e) = send_read_request::<SG_RESULT, _>(channel, serial) {
-            defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", channel, e);
+        if let Err(e) = send_read_request::<SG_RESULT, _>(addr, serial) {
+            defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", addr, e);
             return None;
         }
         #[cfg(feature = "uart_soft_half_duplex")]
@@ -90,11 +96,11 @@ where
 
         match await_read::<SG_RESULT, _>(serial) {
             Ok(sg_result) => {
-                defmt::info!("SG_RESULT/2 on addr {}: {}", channel, sg_result.get() / 2);
+                defmt::info!("SG_RESULT/2 on addr {}: {}", addr, sg_result.get() / 2);
                 Some((sg_result.get() / 2) as u8)
             }
             Err(_) => {
-                defmt::warn!("Failed to read SG_RESULT on addr {}", channel);
+                defmt::warn!("Failed to read SG_RESULT on addr {}", addr);
                 None
             }
         }

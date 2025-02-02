@@ -44,7 +44,7 @@ pub trait EndStopBoard {
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 
-    fn driver_serial(&mut self, channel: u8) -> &mut Self::DriverSerial;
+    fn driver_serial(&mut self, addr: u8) -> &mut Self::DriverSerial;
 }
 #[cfg(feature = "configurable_driver")]
 pub trait ConfigurableDriver<S, const N: usize> {
