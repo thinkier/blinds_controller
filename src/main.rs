@@ -44,6 +44,12 @@ async fn main(spawner: Spawner) {
         Board::init(serial_buffers)
     };
 
+    #[cfg(feature = "stm32")]
+    let mut board = {
+        use crate::board::stm32::Board;
+        Board::init(serial_buffers)
+    };
+
     board.bind_endstops(spawner);
 
     #[cfg(feature = "configurable_driver")]
@@ -94,7 +100,7 @@ async fn main(spawner: Spawner) {
                     }
 
                     if let Some(sgthrs) = sgthrs {
-                        board.set_sg_threshold(channel as usize, sgthrs).await;
+                        board.set_sg_threshold(channel, sgthrs).await;
                     }
                 }
                 IncomingRpcPacket::Set {
@@ -117,7 +123,7 @@ async fn main(spawner: Spawner) {
                     }
                 }
                 IncomingRpcPacket::GetStallGuardResult { channel } => {
-                    let sg_result = board.get_sg_result(channel as usize).await.unwrap_or(0);
+                    let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
                     let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
                     if let Err(e) = board.host_rpc.write(&out) {

@@ -15,8 +15,6 @@ where
     <S as ErrorType>::Error: Format,
 {
     async fn configure_driver(&mut self) {
-        let ser = self.driver_serial();
-
         let mut gconf = GCONF::default();
         gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
@@ -29,6 +27,8 @@ where
         let sgthrs = SGTHRS(100);
 
         for addr in 0..N as u8 {
+            let ser = self.driver_serial(addr);
+
             if let Err(e) = send_write_request(addr, gconf, ser) {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
             }
@@ -51,6 +51,7 @@ where
                 warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
             }
 
+            #[cfg(feature = "uart_soft_half_duplex")]
             for _ in 0..7 {
                 ser.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
             }
@@ -65,24 +66,26 @@ where
     S: Read + Write,
     <S as ErrorType>::Error: Format,
 {
-    async fn set_sg_threshold(&mut self, channel: usize, sgthrs: u8) {
-        let serial = self.driver_serial();
+    async fn set_sg_threshold(&mut self, channel: u8, sgthrs: u8) {
+        let serial = self.driver_serial(channel);
 
         let sgthrs = SGTHRS(sgthrs as u32);
-        if let Err(e) = send_write_request(channel as u8, sgthrs, serial) {
+        if let Err(e) = send_write_request(channel, sgthrs, serial) {
             warn!("Failed to program SGTHRS on addr {}: {:?}", channel, e);
         }
+        #[cfg(feature = "uart_soft_half_duplex")]
         let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
     }
 
     /// For API-compatibility with other StallGuard drivers, this function returns a halved SG_RESULT value
-    async fn get_sg_result(&mut self, channel: usize) -> Option<u8> {
-        let serial = self.driver_serial();
+    async fn get_sg_result(&mut self, channel: u8) -> Option<u8> {
+        let serial = self.driver_serial(channel);
 
-        if let Err(e) = send_read_request::<SG_RESULT, _>(channel as u8, serial) {
+        if let Err(e) = send_read_request::<SG_RESULT, _>(channel, serial) {
             defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", channel, e);
             return None;
         }
+        #[cfg(feature = "uart_soft_half_duplex")]
         let _ = serial.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
 
         match await_read::<SG_RESULT, _>(serial) {

@@ -1,5 +1,7 @@
 #[cfg(feature = "raspberry")]
 pub mod raspberry;
+#[cfg(feature = "stm32")]
+pub mod stm32;
 #[cfg(feature = "tmc2209")]
 pub mod tmc2209;
 
@@ -42,9 +44,8 @@ pub trait EndStopBoard {
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 
-    fn driver_serial(&mut self) -> &mut Self::DriverSerial;
+    fn driver_serial(&mut self, channel: u8) -> &mut Self::DriverSerial;
 }
-
 #[cfg(feature = "configurable_driver")]
 pub trait ConfigurableDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
@@ -53,15 +54,17 @@ pub trait ConfigurableDriver<S, const N: usize> {
 #[cfg(feature = "stallguard")]
 pub trait StallGuard<S, const N: usize> {
     /// StallGuard Threshold, scaled back to 8 bits
-    async fn set_sg_threshold(&mut self, channel: usize, sgthrs: u8);
+    async fn set_sg_threshold(&mut self, channel: u8, sgthrs: u8);
     /// StallGuard result, scaled back to 8 bits
-    async fn get_sg_result(&mut self, channel: usize) -> Option<u8>;
+    async fn get_sg_result(&mut self, channel: u8) -> Option<u8>;
 }
 
+#[cfg(feature = "uart_soft_half_duplex")]
 trait SoftHalfDuplex {
     async fn flush_clear<const N: usize>(&mut self);
 }
 
+#[cfg(feature = "uart_soft_half_duplex")]
 impl<S> SoftHalfDuplex for S
 where
     S: Read + Write,
@@ -71,17 +74,14 @@ where
     /// then this function consumes those bytes that got echoed back on the RX line.
     ///
     /// e.g.
-    /// - `embassy-rp` does not support half duplex UART
-    /// - `embassy-stm32` supports half duplex USART
+    /// - `embassy-rp` does not prevent half duplex read-back, so the bytes must be discarded manually
+    /// - `embassy-stm32` has hardware support to prevent half duplex read-back
     #[inline]
     async fn flush_clear<const N: usize>(&mut self) {
-        #[cfg(feature = "software_half_duplex_uart")]
-        {
-            use embassy_time::Timer;
+        use embassy_time::Timer;
 
-            Timer::after_millis(50).await;
-            let _ = self.flush();
-            let _ = self.read_exact(&mut [0u8; N]);
-        }
+        Timer::after_millis(50).await;
+        let _ = self.flush();
+        let _ = self.read_exact(&mut [0u8; N]);
     }
 }
