@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{env, fs};
 use toml::{self, Table};
 
@@ -22,20 +23,27 @@ fn main() {
         .map(|v| v.as_str().unwrap())
         .collect::<Vec<_>>();
 
-    let mut board_selected = false;
+    let board_envar_names = boards
+        .iter()
+        .map(|board| {
+            (
+                format!("CARGO_FEATURE_{}", board.to_ascii_uppercase()),
+                *board,
+            )
+        })
+        .collect::<HashMap<_, _>>();
 
-    for board in &boards {
-        let current_board_selected =
-            env::var(format!("CARGO_FEATURE_{}", board.to_ascii_uppercase())).is_ok();
+    let boards = env::vars()
+        .map(|(k, _)| k)
+        .map(|be| board_envar_names.get(&be))
+        .filter(|b| b.is_some())
+        .map(|f| *f.unwrap())
+        .collect::<Vec<_>>();
 
-        if current_board_selected && board_selected {
-            println!("cargo::warning=Multiple boards selected, please make up your mind...");
-            return;
-        }
-        board_selected = true;
-    }
-
-    if !board_selected {
+    let boards_count = boards.len();
+    if boards_count > 1 {
+        println!("cargo::warning=Multiple boards selected: {:?}", boards);
+    } else if boards_count == 0 {
         println!(
             "cargo::error=A board must be selected. Supported boards are: {:?}",
             boards

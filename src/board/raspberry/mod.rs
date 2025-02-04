@@ -1,16 +1,19 @@
-use crate::board::raspberry::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{EndStopBoard, StepStickBoard};
+use crate::board::raspberry::utils::counted_sqr_wav_pio::CountedSqrWav;
+use crate::board::{ConfigurableBoard, EndStopBoard, StepStickBoard};
 use crate::comms::RpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::mem;
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
-use embassy_rp::peripherals::{PIO0, PIO1};
+use embassy_rp::peripherals::PIO0;
+#[cfg(feature = "driver-qty-ge-5")]
+use embassy_rp::peripherals::PIO1;
+use embedded_io::{Read, Write};
 
 #[cfg(feature = "btt_skr_pico_v1.0")]
 mod btt_skr_pico_v1_0;
-pub mod counted_sqr_wav_pio;
+pub mod utils;
 
 pub struct DriverPins<'a> {
     pub enable: Output<'a>,
@@ -24,14 +27,18 @@ pub struct Board<'a, const N: usize, D, H> {
     pub driver_serial: D,
     pub host_rpc: RpcHandle<256, H>,
     // State machines - alternative to an ACT timer on STM controllers
-    pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
-    pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
-    pub pio0_2: Option<CountedSqrWav<'a, PIO0, 2>>,
-    pub pio0_3: Option<CountedSqrWav<'a, PIO0, 3>>,
-    pub pio1_0: Option<CountedSqrWav<'a, PIO1, 0>>,
-    pub pio1_1: Option<CountedSqrWav<'a, PIO1, 1>>,
-    pub pio1_2: Option<CountedSqrWav<'a, PIO1, 2>>,
-    pub pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
+    pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
+    pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
+    pio0_2: Option<CountedSqrWav<'a, PIO0, 2>>,
+    pio0_3: Option<CountedSqrWav<'a, PIO0, 3>>,
+    #[cfg(feature = "driver-qty-ge-5")]
+    pio1_0: Option<CountedSqrWav<'a, PIO1, 0>>,
+    #[cfg(feature = "driver-qty-ge-8")]
+    pio1_1: Option<CountedSqrWav<'a, PIO1, 1>>,
+    #[cfg(feature = "driver-qty-ge-8")]
+    pio1_2: Option<CountedSqrWav<'a, PIO1, 2>>,
+    #[cfg(feature = "driver-qty-ge-8")]
+    pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
 }
 
 impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
@@ -57,9 +64,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.stopped()).unwrap_or(true),
             2 => self.pio0_2.as_mut().map(|p| p.stopped()).unwrap_or(true),
             3 => self.pio0_3.as_mut().map(|p| p.stopped()).unwrap_or(true),
+            #[cfg(feature = "driver-qty-ge-5")]
             4 => self.pio1_0.as_mut().map(|p| p.stopped()).unwrap_or(true),
+            #[cfg(feature = "driver-qty-ge-8")]
             5 => self.pio1_1.as_mut().map(|p| p.stopped()).unwrap_or(true),
+            #[cfg(feature = "driver-qty-ge-8")]
             6 => self.pio1_2.as_mut().map(|p| p.stopped()).unwrap_or(true),
+            #[cfg(feature = "driver-qty-ge-8")]
             7 => self.pio1_3.as_mut().map(|p| p.stopped()).unwrap_or(true),
             _ => true,
         }
@@ -71,9 +82,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.ready()).unwrap_or(false),
             2 => self.pio0_2.as_mut().map(|p| p.ready()).unwrap_or(false),
             3 => self.pio0_3.as_mut().map(|p| p.ready()).unwrap_or(false),
+            #[cfg(feature = "driver-qty-ge-5")]
             4 => self.pio1_0.as_mut().map(|p| p.ready()).unwrap_or(false),
+            #[cfg(feature = "driver-qty-ge-8")]
             5 => self.pio1_1.as_mut().map(|p| p.ready()).unwrap_or(false),
+            #[cfg(feature = "driver-qty-ge-8")]
             6 => self.pio1_2.as_mut().map(|p| p.ready()).unwrap_or(false),
+            #[cfg(feature = "driver-qty-ge-8")]
             7 => self.pio1_3.as_mut().map(|p| p.ready()).unwrap_or(false),
             _ => false,
         }
@@ -89,9 +104,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.try_push(steps)),
             2 => self.pio0_2.as_mut().map(|p| p.try_push(steps)),
             3 => self.pio0_3.as_mut().map(|p| p.try_push(steps)),
+            #[cfg(feature = "driver-qty-ge-5")]
             4 => self.pio1_0.as_mut().map(|p| p.try_push(steps)),
+            #[cfg(feature = "driver-qty-ge-8")]
             5 => self.pio1_1.as_mut().map(|p| p.try_push(steps)),
+            #[cfg(feature = "driver-qty-ge-8")]
             6 => self.pio1_2.as_mut().map(|p| p.try_push(steps)),
+            #[cfg(feature = "driver-qty-ge-8")]
             7 => self.pio1_3.as_mut().map(|p| p.try_push(steps)),
             _ => None,
         }
@@ -103,9 +122,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.clear()),
             2 => self.pio0_2.as_mut().map(|p| p.clear()),
             3 => self.pio0_3.as_mut().map(|p| p.clear()),
+            #[cfg(feature = "driver-qty-ge-5")]
             4 => self.pio1_0.as_mut().map(|p| p.clear()),
+            #[cfg(feature = "driver-qty-ge-8")]
             5 => self.pio1_1.as_mut().map(|p| p.clear()),
+            #[cfg(feature = "driver-qty-ge-8")]
             6 => self.pio1_2.as_mut().map(|p| p.clear()),
+            #[cfg(feature = "driver-qty-ge-8")]
             7 => self.pio1_3.as_mut().map(|p| p.clear()),
             _ => None,
         };
@@ -124,9 +147,21 @@ impl<const N: usize, D, H> EndStopBoard for Board<'static, N, D, H> {
     }
 }
 
+#[cfg(feature = "configurable_driver")]
+impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>
+where
+    D: Read + Write,
+{
+    type DriverSerial = D;
+
+    fn driver_serial(&mut self, _addr: u8) -> &mut Self::DriverSerial {
+        &mut self.driver_serial
+    }
+}
+
 /// Not universally compatible
 ///
-/// See: https://docs.embassy.dev/embassy-stm32/git/stm32g0b1re/exti/struct.ExtiInput.html#method.wait_for_rising_edge
+/// See: https://docs.embassy.dev/embassy-rp/git/rp2040/gpio/struct.Flex.html
 #[embassy_executor::task(pool_size = DRIVERS)]
 async fn stop_detector(i: usize, mut input: Input<'static>) {
     loop {

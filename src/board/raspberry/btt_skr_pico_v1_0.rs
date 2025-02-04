@@ -1,21 +1,19 @@
-use crate::board::raspberry::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
+use crate::board::raspberry::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use crate::board::raspberry::{Board, DriverPins};
-use crate::board::{ConfigurableBoard, SerialBuffers};
+use crate::board::SerialBuffers;
+use crate::comms::RpcHandle;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::{PIO0, PIO1, UART0, UART1};
+use embassy_rp::peripherals::{PIO0, UART0, UART1};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config, Uart};
 use embassy_rp::Peripherals;
-use embedded_io::{Read, Write};
 use static_cell::StaticCell;
-use crate::comms::RpcHandle;
 
 pub const FREQUENCY: u16 = 1000;
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
-    PIO1_IRQ_0 => InterruptHandler<PIO1>;
     UART0_IRQ => BufferedInterruptHandler<UART0>;
     UART1_IRQ => BufferedInterruptHandler<UART1>;
 });
@@ -111,21 +109,6 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),
             pio0_3: Some(pio0_3),
-            pio1_0: None,
-            pio1_1: None,
-            pio1_2: None,
-            pio1_3: None,
         }
-    }
-}
-
-impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>
-where
-    D: Read + Write,
-{
-    type DriverSerial = D;
-
-    fn driver_serial(&mut self, _addr: u8) -> &mut Self::DriverSerial {
-        &mut self.driver_serial
     }
 }

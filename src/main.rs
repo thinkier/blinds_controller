@@ -26,7 +26,24 @@ static STOPS: AtomicU8 = AtomicU8::new(0);
 static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; DRIVERS]> = StaticCell::new();
 
-pub const DRIVERS: usize = 4;
+pub const DRIVERS: usize = get_driver_count();
+
+const fn get_driver_count() -> usize {
+    if cfg!(feature = "driver-qty-4") {
+        4
+    } else if cfg!(feature = "driver-qty-5") {
+        5
+    } else if cfg!(feature = "driver-qty-8") {
+        8
+    } else if cfg!(feature = "driver-qty-10") {
+        10
+    } else {
+        #[cfg(not(any(feature = "driver-qty-4", feature = "driver-qty-5", feature = "driver-qty-8", feature = "driver-qty-10")))]
+        compile_error!("One driver-qty-{n} flag MUST be defined!");
+        0 // Unreachable
+    }
+}
+
 pub const FREQUENCY: u16 = 1000;
 
 #[embassy_executor::main]
@@ -65,6 +82,18 @@ async fn main(spawner: Spawner) {
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
         HaltingSequencer::new_roller(100_000),
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-5"))]
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-8"))]
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-8"))]
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-8"))]
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-10"))]
+        HaltingSequencer::new_roller(100_000),
+        #[cfg(any(feature = "driver-qty-ge-10"))]
         HaltingSequencer::new_roller(100_000),
     ]);
     let mut next_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];

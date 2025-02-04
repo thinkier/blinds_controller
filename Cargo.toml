@@ -7,7 +7,8 @@ build = "src/build.rs"
 [package.metadata]
 supported_boards = [
     "btt_skr_pico_v1.0",
-    "btt_manta_e3ez"
+    "btt_manta_e3ez",
+    "btt_octopus"
 ]
 
 [features]
@@ -30,10 +31,26 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
     "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
     "embassy-stm32/time-driver-tim2" # This particular STM chip has the ACTs on 1, 15, 16, and 17. Avoiding those.
 ]
+stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
+    # Has LDREX / STREX
+    "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
+    "embassy-stm32/time-driver-tim2" # This particular STM chip has the ACTs on 1 and 8. Avoiding those.
+]
 
 # Board configuration block
-"btt_skr_pico_v1.0" = ["rp2040", "tmc2209_uart", "uart_driver_shared_bus"]
-btt_manta_e3ez = ["stm32g0b1re", "tmc2209_uart"]
+"btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4", "tmc2209_uart", "uart_driver_shared_bus"]
+btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5", "tmc2209_uart"]
+btt_octopus = ["stm32f446ze", "driver-qty-8", "tmc2209_uart"]
+
+# Driver quantity selector
+driver-qty-4 = []
+driver-qty-5 = ["driver-qty-ge-5"]
+driver-qty-8 = ["driver-qty-ge-8"]
+driver-qty-10 = ["driver-qty-ge-10"]
+# Comparators to make it easier to use the flags in code
+driver-qty-ge-5 = []
+driver-qty-ge-8 = ["driver-qty-ge-5"]
+driver-qty-ge-10 = ["driver-qty-ge-8"]
 
 # Driver configuration block
 tmc2209_uart = ["dep:tmc2209", "configurable_driver", "stallguard"]
@@ -49,8 +66,8 @@ defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
 # Runtime deps
-cortex-m = { version = "0.7" }
-cortex-m-rt = { version = "0.7" }
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
 embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
 
@@ -61,7 +78,7 @@ pio = { version = "0.2", optional = true }
 fixed = { version = "1", optional = true }
 
 # STMicroelectronics-specific deps
-embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "memory-x", "time"] }
+embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "memory-x", "time", "exti"] }
 
 # TMC2209 driver-specific deps
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }

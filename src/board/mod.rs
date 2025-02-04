@@ -74,7 +74,7 @@ where
     /// then this function consumes those bytes that got echoed back on the RX line.
     ///
     /// e.g.
-    /// - `embassy-rp` does not prevent half duplex read-back, so the bytes must be discarded manually
+    /// - `embassy-raspberry` does not prevent half duplex read-back, so the bytes must be discarded manually
     /// - `embassy-stm32` has hardware support to prevent half duplex read-back
     #[inline]
     async fn flush_clear<const N: usize>(&mut self) {

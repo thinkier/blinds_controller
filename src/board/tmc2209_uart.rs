@@ -5,7 +5,9 @@ use embedded_io::{ErrorType, Read, Write};
 use tmc2209::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
 use tmc2209::{await_read, send_read_request, send_write_request};
 
+#[cfg(feature = "uart_soft_half_duplex")]
 const DATAGRAM_SIZE_READ_REQ: usize = 4;
+#[cfg(feature = "uart_soft_half_duplex")]
 const DATAGRAM_SIZE_WRITE_REQ: usize = 8;
 
 impl<B, S, const N: usize> ConfigurableDriver<S, N> for B
