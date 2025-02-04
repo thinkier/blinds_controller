@@ -2,8 +2,8 @@
 pub mod raspberry;
 #[cfg(feature = "stm32")]
 pub mod stm32;
-#[cfg(feature = "tmc2209")]
-pub mod tmc2209;
+#[cfg(feature = "tmc2209_uart")]
+pub mod tmc2209_uart;
 
 use embassy_executor::Spawner;
 use embedded_io::{Read, Write};

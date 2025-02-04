@@ -8,7 +8,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
 use embassy_rp::peripherals::{PIO0, PIO1};
 
-#[cfg(feature = "btt_skr_pico_v1_0")]
+#[cfg(feature = "btt_skr_pico_v1.0")]
 mod btt_skr_pico_v1_0;
 pub mod counted_sqr_wav_pio;
 

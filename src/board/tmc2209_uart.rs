@@ -1,4 +1,4 @@
-use crate::board::{ConfigurableBoard, ConfigurableDriver, SoftHalfDuplex, StallGuard};
+use crate::board::{ConfigurableBoard, ConfigurableDriver, StallGuard};
 use defmt::*;
 use embassy_time::Timer;
 use embedded_io::{ErrorType, Read, Write};
@@ -55,6 +55,7 @@ where
 
             #[cfg(feature = "uart_soft_half_duplex")]
             for _ in 0..7 {
+                use crate::board::SoftHalfDuplex;
                 ser.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
             }
             Timer::after_millis(50).await;
@@ -78,7 +79,10 @@ where
             warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
         }
         #[cfg(feature = "uart_soft_half_duplex")]
-        let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
+        {
+            use crate::board::SoftHalfDuplex;
+            let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
+        }
     }
 
     /// For API-compatibility with other StallGuard drivers, this function returns a halved SG_RESULT value
@@ -92,8 +96,10 @@ where
             return None;
         }
         #[cfg(feature = "uart_soft_half_duplex")]
-        let _ = serial.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
-
+        {
+            use crate::board::SoftHalfDuplex;
+            let _ = serial.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
+        }
         match await_read::<SG_RESULT, _>(serial) {
             Ok(sg_result) => {
                 defmt::info!("SG_RESULT/2 on addr {}: {}", addr, sg_result.get() / 2);

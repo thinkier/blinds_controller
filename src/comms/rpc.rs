@@ -1,13 +1,12 @@
 use blinds_sequencer::WindowDressingState;
+use cortex_m::peripheral::SCB;
 use defmt::*;
-use embassy_rp::watchdog::Watchdog;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
 
 pub struct RpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
     pub serial: IO,
-    pub wdt: Watchdog,
 }
 
 pub enum RpcError<E: embedded_io::Error> {
@@ -44,11 +43,10 @@ impl<const N: usize, IO> RpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
 {
-    pub fn new(serial: IO, wdt: Watchdog) -> Self {
+    pub fn new(serial: IO) -> Self {
         Self {
             packet_buf: [0; N],
             serial,
-            wdt,
         }
     }
 
@@ -61,8 +59,7 @@ where
         self.serial.read(&mut len_buf)?;
         let len = len_buf[0] as usize;
         if len == 0 {
-            self.wdt.trigger_reset();
-            return Ok(None);
+            SCB::sys_reset();
         }
         self.serial.read_exact(&mut self.packet_buf[0..len])?;
         let packet = serde_json_core::from_slice(&mut self.packet_buf[0..len])
@@ -128,6 +125,6 @@ pub enum OutgoingRpcPacket {
     #[cfg(feature = "stallguard")]
     StallGuardResult {
         channel: u8,
-        sg_result: u8
+        sg_result: u8,
     },
 }
