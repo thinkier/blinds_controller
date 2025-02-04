@@ -57,7 +57,7 @@ async fn main(spawner: Spawner) {
     info!("Initialising Peripherals");
     #[cfg(feature = "rp")]
     let mut board = {
-        use crate::board::raspberry::Board;
+        use crate::board::rp::Board;
         Board::init(serial_buffers)
     };
 

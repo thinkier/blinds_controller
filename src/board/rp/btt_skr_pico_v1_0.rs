@@ -1,5 +1,5 @@
-use crate::board::raspberry::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
-use crate::board::raspberry::{Board, DriverPins};
+use crate::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
+use crate::board::rp::{Board, DriverPins};
 use crate::board::SerialBuffers;
 use crate::comms::RpcHandle;
 use embassy_rp::bind_interrupts;

@@ -1,4 +1,4 @@
-use crate::board::raspberry::utils::counted_sqr_wav_pio::CountedSqrWav;
+use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, EndStopBoard, StepStickBoard};
 use crate::comms::RpcHandle;
 use crate::{DRIVERS, STOPS};
