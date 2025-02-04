@@ -38,7 +38,7 @@ async fn main(spawner: Spawner) {
     let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
 
     info!("Initialising Peripherals");
-    #[cfg(feature = "raspberry")]
+    #[cfg(feature = "rp")]
     let mut board = {
         use crate::board::raspberry::Board;
         Board::init(serial_buffers)

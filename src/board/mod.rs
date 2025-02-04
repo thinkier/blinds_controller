@@ -1,4 +1,4 @@
-#[cfg(feature = "raspberry")]
+#[cfg(feature = "rp")]
 pub mod raspberry;
 #[cfg(feature = "stm32")]
 pub mod stm32;

@@ -14,14 +14,15 @@ supported_boards = [
 default = []
 
 # MCU vendor configuration block
-raspberry = ["dep:embassy-rp",
+rp = [
+    "dep:embassy-rp",
     "dep:pio-proc", "dep:pio", "dep:fixed", # No ACT timer like the STM chips, implemented in PIO
     "uart_soft_half_duplex" # No hardware readback prevention on UART
 ]
 stm32 = ["dep:embassy-stm32"]
 
 # MCU configuration block
-rp2040 = ["raspberry", "embassy-rp/rp2040",
+rp2040 = ["rp", "embassy-rp/rp2040",
     "dep:critical-section", "portable-atomic/critical-section" # No atomic instructions
 ]
 stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
