@@ -36,10 +36,10 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
     "thumbv6m",
     "cortex-m/critical-section-single-core" # Not all STM chips are single-cored so making the selection here
 ]
-stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
-    "thumbv7em-hf",
-    "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
-]
+#stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
+#    "thumbv7em-hf",
+#    "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
+#]
 
 # Board configuration block
 "btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4",
@@ -48,9 +48,9 @@ stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
 btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5",
     "tmc2209_uart" # Individually-swappable drivers
 ]
-btt_octopus = ["stm32f446ze", "driver-qty-8",
-    "tmc2209_uart" # Individually-swappable drivers
-]
+#btt_octopus = ["stm32f446ze", "driver-qty-8",
+#    "tmc2209_uart" # Individually-swappable drivers
+#]
 
 # Driver quantity selector
 driver-qty-4 = []
