@@ -23,6 +23,7 @@ rp = [
 stm32 = ["dep:embassy-stm32"]
 
 # MCU configuration block
+## thumb6m-none-eabi
 rp2040 = ["rp", "embassy-rp/rp2040",
     "dep:critical-section", "portable-atomic/critical-section" # No atomic instructions
 ]
@@ -31,6 +32,7 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
     "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
     "embassy-stm32/time-driver-tim2" # This particular STM chip has the ACTs on 1, 15, 16, and 17. Avoiding those.
 ]
+## thumbv7em-none-eabihf
 stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
     # Has LDREX / STREX
     "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
