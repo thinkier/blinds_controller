@@ -20,7 +20,10 @@ rp = [
     "dep:pio-proc", "dep:pio", "dep:fixed", # No ACT timer like the STM chips, implemented in PIO
     "uart_soft_half_duplex" # No hardware readback prevention on UART
 ]
-stm32 = ["dep:embassy-stm32", "embassy-stm32/time-driver-tim2"]
+stm32 = [
+    "dep:embassy-stm32",
+    "embassy-stm32/time-driver-tim2" # Choosing TIM2 as this shouldn't occupy any ACT-capable timers
+]
 
 # Architecture configuration block
 thumbv6m = [

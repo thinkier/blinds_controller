@@ -17,18 +17,18 @@ pub use crate::board::rp::Board;
 pub use crate::board::stm32::Board;
 
 
-pub struct SerialBuffers {
-    driver_tx_buf: [u8; 32],
-    driver_rx_buf: [u8; 32],
+pub struct SerialBuffers<const N: usize> {
+    driver_tx_buf: [[u8; 32]; N],
+    driver_rx_buf: [[u8; 32]; N],
     host_tx_buf: [u8; 256],
     host_rx_buf: [u8; 256],
 }
 
-impl SerialBuffers {
+impl<const N: usize> SerialBuffers<N> {
     pub(crate) const fn default() -> Self {
         Self {
-            driver_tx_buf: [0; 32],
-            driver_rx_buf: [0; 32],
+            driver_tx_buf: [[0; 32]; N],
+            driver_rx_buf: [[0; 32]; N],
             host_tx_buf: [0; 256],
             host_rx_buf: [0; 256],
         }

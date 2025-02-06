@@ -20,8 +20,8 @@ pub struct DriverPins<'a> {
 
 pub struct Board<'a, const N: usize, D, H> {
     pub end_stops: [Option<ExtiInput<'a>>; N],
-    pub drivers: [DriverPins<'a>; N],
-    pub driver_serial: D,
+    pub drivers: [Option<DriverPins<'a>>; N],
+    pub driver_serial: [D; N],
     pub host_rpc: RpcHandle<256, H>,
 }
 
@@ -65,8 +65,8 @@ where
 {
     type DriverSerial = D;
 
-    fn driver_serial(&mut self, _addr: u8) -> &mut Self::DriverSerial {
-        &mut self.driver_serial
+    fn driver_serial(&mut self, addr: u8) -> &mut Self::DriverSerial {
+        &mut self.driver_serial[addr as usize]
     }
 }
 

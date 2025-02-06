@@ -2,11 +2,9 @@
 #![no_main]
 
 mod board;
-mod checks;
 mod comms;
 
 use crate::board::*;
-use crate::checks::all_checks;
 use crate::comms::{IncomingRpcPacket, OutgoingRpcPacket};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
@@ -23,7 +21,10 @@ use {defmt_rtt as _, panic_probe as _};
 
 static REVERSALS: AtomicU8 = AtomicU8::new(0);
 static STOPS: AtomicU8 = AtomicU8::new(0);
-static mut SERIAL_BUFFERS: SerialBuffers = SerialBuffers::default();
+#[cfg(feature = "uart_driver_shared_bus")]
+static mut SERIAL_BUFFERS: SerialBuffers<1> = SerialBuffers::default();
+#[cfg(not(feature = "uart_driver_shared_bus"))]
+static mut SERIAL_BUFFERS: SerialBuffers<DRIVERS> = SerialBuffers::default();
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; DRIVERS]> = StaticCell::new();
 
 pub const DRIVERS: usize = get_driver_count();
@@ -48,7 +49,6 @@ pub const FREQUENCY: u16 = 1000;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    all_checks();
     // Once again, a single-purpose buffer that should not be allocated at runtime, so
     // it is allocated as a static mutable reference (unsafe)
     #[allow(static_mut_refs)]
