@@ -1,12 +1,21 @@
 #[cfg(feature = "rp")]
-pub mod rp;
+mod rp;
 #[cfg(feature = "stm32")]
-pub mod stm32;
+mod stm32;
 #[cfg(feature = "tmc2209_uart")]
 pub mod tmc2209_uart;
 
 use embassy_executor::Spawner;
 use embedded_io::{Read, Write};
+
+#[allow(unused)]
+#[cfg(feature = "rp")]
+pub use crate::board::rp::Board;
+
+#[allow(unused)]
+#[cfg(feature = "stm32")]
+pub use crate::board::stm32::Board;
+
 
 pub struct SerialBuffers {
     driver_tx_buf: [u8; 32],

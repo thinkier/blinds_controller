@@ -20,29 +20,37 @@ rp = [
     "dep:pio-proc", "dep:pio", "dep:fixed", # No ACT timer like the STM chips, implemented in PIO
     "uart_soft_half_duplex" # No hardware readback prevention on UART
 ]
-stm32 = ["dep:embassy-stm32"]
+stm32 = ["dep:embassy-stm32", "embassy-stm32/time-driver-tim2"]
+
+# Architecture configuration block
+thumbv6m = [
+    "dep:critical-section", "portable-atomic/critical-section", # No atomic instructions
+]
+thumbv7em-hf = []
 
 # MCU configuration block
-## thumb6m-none-eabi
 rp2040 = ["rp", "embassy-rp/rp2040",
-    "dep:critical-section", "portable-atomic/critical-section" # No atomic instructions
+    "thumbv6m"
 ]
 stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
-    "dep:critical-section", "portable-atomic/critical-section", # No atomic instructions
-    "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
-    "embassy-stm32/time-driver-tim2" # This particular STM chip has the ACTs on 1, 15, 16, and 17. Avoiding those.
+    "thumbv6m",
+    "cortex-m/critical-section-single-core" # Not all STM chips are single-cored so making the selection here
 ]
-## thumbv7em-none-eabihf
 stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
-    # Has LDREX / STREX
+    "thumbv7em-hf",
     "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
-    "embassy-stm32/time-driver-tim2" # This particular STM chip has the ACTs on 1 and 8. Avoiding those.
 ]
 
 # Board configuration block
-"btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4", "tmc2209_uart", "uart_driver_shared_bus"]
-btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5", "tmc2209_uart"]
-btt_octopus = ["stm32f446ze", "driver-qty-8", "tmc2209_uart"]
+"btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4",
+    "tmc2209_uart", "uart_driver_shared_bus" # Onboard drivers
+]
+btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5",
+    "tmc2209_uart" # Individually-swappable drivers
+]
+btt_octopus = ["stm32f446ze", "driver-qty-8",
+    "tmc2209_uart" # Individually-swappable drivers
+]
 
 # Driver quantity selector
 driver-qty-4 = []

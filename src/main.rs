@@ -54,18 +54,7 @@ async fn main(spawner: Spawner) {
     #[allow(static_mut_refs)]
     let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
 
-    info!("Initialising Peripherals");
-    #[cfg(feature = "rp")]
-    let mut board = {
-        use crate::board::rp::Board;
-        Board::init(serial_buffers)
-    };
-
-    #[cfg(feature = "stm32")]
-    let mut board = {
-        use crate::board::stm32::Board;
-        Board::init(serial_buffers)
-    };
+    let mut board = Board::init(serial_buffers);
 
     board.bind_endstops(spawner);
 
