@@ -3,6 +3,7 @@ name = "blinds_controller"
 version = "0.1.0"
 edition = "2021"
 build = "src/build.rs"
+authors = ["thinkier"]
 
 [package.metadata]
 supported_boards = [
@@ -49,11 +50,15 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
     "tmc2209_uart", "uart_driver_shared_bus" # Onboard drivers
 ]
 btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5",
-    "tmc2209_uart" # Individually-swappable drivers
+    "tmc2209_uart", # Individually-swappable drivers
+    "usb-cdc-acm" # Host communications are over USB instead of UART
 ]
 #btt_octopus = ["stm32f446ze", "driver-qty-8",
 #    "tmc2209_uart" # Individually-swappable drivers
 #]
+
+# Communications block
+usb-cdc-acm = ["dep:embassy-usb"]
 
 # Driver quantity selector
 driver-qty-4 = []
@@ -100,6 +105,7 @@ tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 
 # RPC deps
+embassy-usb = {version = "0.4", optional = true }
 embedded-io = { version = "0.6", features = ["defmt-03"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", features = ["defmt"] }

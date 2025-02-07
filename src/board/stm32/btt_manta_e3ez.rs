@@ -1,8 +1,17 @@
+use embassy_stm32::bind_interrupts;
 use crate::board::stm32::{Board, DriverPins};
 use crate::board::SerialBuffers;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
+use embassy_stm32::peripherals::USB;
 use embassy_stm32::usart::BufferedUart;
+use embassy_stm32::usb::{Driver, InterruptHandler};
+use crate::comms::RpcHandle;
+use crate::comms::usb_cdc_acm::make_acm;
+
+bind_interrupts!(struct Irqs {
+    USB_UCPD1_2 => InterruptHandler<USB>;
+});
 
 impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
     pub fn init(serial_buffers: &'static mut SerialBuffers<5>) -> Self {
@@ -41,7 +50,12 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
             }),
         ];
 
-        let driver_serial;
+        let mut driver_serial = [
+
+        ];
+
+        let driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
+        let (usb, acm) = make_acm(driver);
         let host_rpc;
 
         Board {
