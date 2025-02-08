@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "host-uart")]
 pub use serial::*;
 
-pub trait Rpc {
+pub trait AsyncRpc {
     type Error: defmt::Format;
 
-    fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
-    fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error>;
+    async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
+    async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error>;
 }
 
 #[derive(Deserialize, Serialize)]

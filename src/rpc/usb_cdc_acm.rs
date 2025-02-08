@@ -19,7 +19,7 @@ const fn config() -> Config<'static> {
     config
 }
 
-pub struct UsbCdcAcmStream<'a, D> {
+pub struct UsbCdcAcmStream<'a, D: Driver<'a>> {
     class: CdcAcmClass<'a, D>,
 }
 
@@ -27,7 +27,7 @@ impl<D: Driver<'static>> UsbCdcAcmStream<'static, D> {
     /// This function is basically copied from the Embassy example
     ///
     /// https://github.com/embassy-rs/embassy/blob/a3d35216d4649fbadd3e78fe240b736258b7befe/examples/rp/src/bin/usb_serial.rs
-    pub fn make_acm<D: Driver<'static>>(driver: D) -> (UsbDevice<'static, D>, Self) {
+    pub fn init(driver: D) -> (UsbDevice<'static, D>, Self) {
         let config = config();
         // Create embassy-usb DeviceBuilder using the driver and config.
         // It needs some buffers for building the descriptors.
@@ -57,4 +57,9 @@ impl<D: Driver<'static>> UsbCdcAcmStream<'static, D> {
         // Build the builder.
         (builder.build(), Self { class })
     }
+}
+
+pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
+    pub packet_buf: [u8; N],
+    pub stream: UsbCdcAcmStream<'a, D>,
 }

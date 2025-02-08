@@ -1,5 +1,5 @@
 use crate::board::stm32::{Board, DriverPins};
-use crate::rpc::usb_cdc_acm::make_acm;
+use crate::rpc::usb_cdc_acm::{UsbCdcAcmStream};
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;
@@ -53,7 +53,7 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
         let mut driver_serial = [];
 
         let driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
-        let (usb, acm) = make_acm(driver);
+        let (usb, acm) = UsbCdcAcmStream::init(driver);
         let _ = spawner.spawn(usb_task(usb));
 
         let host_rpc;
@@ -67,6 +67,6 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
 }
 
 #[embassy_executor::task]
-async fn usb_task(mut usb: UsbDevice<Driver<USB>>) {
+async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
     usb.run().await;
 }

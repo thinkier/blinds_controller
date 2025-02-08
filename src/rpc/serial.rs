@@ -1,4 +1,4 @@
-use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, Rpc};
+use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, AsyncRpc};
 use cortex_m::peripheral::SCB;
 use defmt::*;
 use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
@@ -49,14 +49,14 @@ where
         }
     }
 }
-impl<const N: usize, IO> Rpc for SerialRpcHandle<N, IO>
+impl<const N: usize, IO> AsyncRpc for SerialRpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
     <IO as ErrorType>::Error: defmt::Format,
 {
     type Error = RpcError<IO::Error>;
 
-    fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+    async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
         if self.serial.read_ready()? == false {
             return Ok(None);
         }
@@ -75,7 +75,7 @@ where
         Ok(Some(packet))
     }
 
-    fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
+    async fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
         let packet = serde_json_core::to_slice(resp, &mut self.packet_buf[1..])
             .map_err(|e| RpcError::EncodeError(e))?;
         self.packet_buf[0] = packet as u8 + 2;

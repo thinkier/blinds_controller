@@ -5,7 +5,7 @@ mod board;
 mod rpc;
 
 use crate::board::*;
-use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, Rpc};
+use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, AsyncRpc};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
