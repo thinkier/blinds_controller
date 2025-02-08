@@ -1,6 +1,7 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use crate::board::rp::{bind_endstops, Board, DriverPins};
-use crate::comms::SerialRpcHandle;
+use crate::rpc::SerialRpcHandle;
+use crate::static_buffer;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -8,8 +9,7 @@ use embassy_rp::peripherals::{PIO0, UART0, UART1};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config, Uart};
 use embassy_rp::Peripherals;
-use static_cell::{StaticCell};
-use crate::static_buffer;
+use static_cell::StaticCell;
 
 pub const FREQUENCY: u16 = 1000;
 
@@ -69,12 +69,15 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             .into_buffered(Irqs, HOST_BUFFER_TX.take(), HOST_BUFFER_RX.take());
         let host_rpc = SerialRpcHandle::new(host_serial);
 
-        bind_endstops(spawner, [
-            Input::new(&mut p.PIN_4, Pull::Down),
-            Input::new(&mut p.PIN_25, Pull::Down),
-            Input::new(&mut p.PIN_3, Pull::Down),
-            Input::new(&mut p.PIN_16, Pull::Down),
-        ]);
+        bind_endstops(
+            spawner,
+            [
+                Input::new(&mut p.PIN_4, Pull::Down),
+                Input::new(&mut p.PIN_25, Pull::Down),
+                Input::new(&mut p.PIN_3, Pull::Down),
+                Input::new(&mut p.PIN_16, Pull::Down),
+            ],
+        );
         let driver = [
             DriverPins {
                 enable: Output::new(&mut p.PIN_12, Level::High),
@@ -97,7 +100,6 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
                 dir: Output::new(&mut p.PIN_13, Level::Low),
             },
         ];
-
 
         Self {
             drivers: driver,

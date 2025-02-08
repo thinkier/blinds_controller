@@ -1,8 +1,7 @@
-use blinds_sequencer::WindowDressingState;
+use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, Rpc};
 use cortex_m::peripheral::SCB;
 use defmt::*;
-use embedded_io::{Read, ReadExactError, ReadReady, Write};
-use serde::{Deserialize, Serialize};
+use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
 pub struct SerialRpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
@@ -49,8 +48,15 @@ where
             serial,
         }
     }
+}
+impl<const N: usize, IO> Rpc for SerialRpcHandle<N, IO>
+where
+    IO: Read + ReadReady + Write,
+    <IO as ErrorType>::Error: defmt::Format,
+{
+    type Error = RpcError<IO::Error>;
 
-    pub fn read(&mut self) -> Result<Option<IncomingRpcPacket>, RpcError<IO::Error>> {
+    fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
         if self.serial.read_ready()? == false {
             return Ok(None);
         }
@@ -69,7 +75,7 @@ where
         Ok(Some(packet))
     }
 
-    pub fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), RpcError<IO::Error>> {
+    fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
         let packet = serde_json_core::to_slice(resp, &mut self.packet_buf[1..])
             .map_err(|e| RpcError::EncodeError(e))?;
         self.packet_buf[0] = packet as u8 + 2;
@@ -81,50 +87,4 @@ where
 
         Ok(())
     }
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-#[serde(rename_all = "snake_case")]
-pub enum IncomingRpcPacket {
-    Home {
-        channel: u8,
-    },
-    Setup {
-        channel: u8,
-        init: WindowDressingState,
-        full_cycle_steps: u32,
-        reverse: Option<bool>,
-        full_tilt_steps: Option<u32>,
-        #[cfg(feature = "stallguard")]
-        sgthrs: Option<u8>,
-    },
-    Set {
-        channel: u8,
-        position: Option<u8>,
-        tilt: Option<i8>,
-    },
-    Get {
-        channel: u8,
-    },
-    #[cfg(feature = "stallguard")]
-    GetStallGuardResult {
-        channel: u8,
-    },
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OutgoingRpcPacket {
-    Ready {},
-    Position {
-        channel: u8,
-        current: WindowDressingState,
-        desired: WindowDressingState,
-    },
-    #[cfg(feature = "stallguard")]
-    StallGuardResult {
-        channel: u8,
-        sg_result: u8,
-    },
 }

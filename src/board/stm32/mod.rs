@@ -1,11 +1,11 @@
-use crate::comms::SerialRpcHandle;
+use crate::board::{ConfigurableBoard, EndStopBoard, StepStickBoard};
+use crate::rpc::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::Output;
 use embedded_io::{Read, Write};
-use crate::board::{ConfigurableBoard, EndStopBoard, StepStickBoard};
 
 #[cfg(feature = "btt_manta_e3ez")]
 mod btt_manta_e3ez;

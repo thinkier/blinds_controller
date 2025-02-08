@@ -2,10 +2,10 @@
 #![no_main]
 
 mod board;
-mod comms;
+mod rpc;
 
 use crate::board::*;
-use crate::comms::{IncomingRpcPacket, OutgoingRpcPacket};
+use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, Rpc};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,

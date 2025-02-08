@@ -1,6 +1,6 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, StepStickBoard};
-use crate::comms::SerialRpcHandle;
+use crate::rpc::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;

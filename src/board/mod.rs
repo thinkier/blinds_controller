@@ -18,8 +18,9 @@ pub use crate::board::stm32::Board;
 #[macro_export]
 macro_rules! static_buffer {
     ($name:tt: $size:literal) => {
-        static $name: static_cell::ConstStaticCell<[u8; $size]> = static_cell::ConstStaticCell::new([0; $size]);
-    }
+        static $name: static_cell::ConstStaticCell<[u8; $size]> =
+            static_cell::ConstStaticCell::new([0; $size]);
+    };
 }
 
 #[allow(clippy::wrong_self_convention)]
