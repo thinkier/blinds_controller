@@ -54,9 +54,7 @@ async fn main(spawner: Spawner) {
     #[allow(static_mut_refs)]
     let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
 
-    let mut board = Board::init(serial_buffers);
-
-    board.bind_endstops(spawner);
+    let mut board = Board::init(spawner, serial_buffers);
 
     #[cfg(feature = "configurable_driver")]
     {

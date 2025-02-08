@@ -1,6 +1,7 @@
+use embassy_executor::Spawner;
 use crate::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use crate::board::rp::{Board, DriverPins};
-use crate::board::SerialBuffers;
+use crate::board::{EndStopBoard, SerialBuffers};
 use crate::comms::RpcHandle;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -23,7 +24,7 @@ static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
 static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
 
 impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0>> {
-    pub fn init(serial_buffers: &'static mut SerialBuffers) -> Self {
+    pub fn init(spawner: Spawner, serial_buffers: &'static mut SerialBuffers<1>) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(&mut p.PIO0, Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
@@ -60,8 +61,8 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
         let driver_serial = Uart::new_blocking(&mut p.UART1, &mut p.PIN_8, &mut p.PIN_9, uart_cfg)
             .into_buffered(
                 Irqs,
-                &mut serial_buffers.driver_tx_buf,
-                &mut serial_buffers.driver_rx_buf,
+                &mut serial_buffers.driver_tx_buf[0],
+                &mut serial_buffers.driver_rx_buf[0],
             );
         let host_serial = Uart::new_blocking(&mut p.UART0, &mut p.PIN_0, &mut p.PIN_1, uart_cfg)
             .into_buffered(
@@ -100,7 +101,8 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             },
         ];
 
-        Self {
+
+        let mut board = Self {
             end_stops,
             drivers: driver,
             driver_serial,
@@ -109,6 +111,10 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),
             pio0_3: Some(pio0_3),
-        }
+        };
+
+        board.bind_endstops(spawner);
+
+        board
     }
 }

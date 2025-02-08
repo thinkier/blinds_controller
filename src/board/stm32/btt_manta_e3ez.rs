@@ -27,11 +27,11 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
 
         let drivers: [Option<DriverPins<'static>>; 5] = [
             // X ENN and X STEP are shared with SWCLK and SWDIO, no go...
-            // DriverPins {
+            None,
+            // Some(DriverPins {
             //     enable: Output::new(p.PA13, Level::Low, Speed::Low),
             //     dir: Output::new(p.PA10, Level::Low, Speed::Low),
-            // },
-            None,
+            // }),
             Some(DriverPins {
                 enable: Output::new(p.PC14, Level::Low, Speed::Low),
                 dir: Output::new(p.PA15, Level::Low, Speed::Low),
