@@ -47,18 +47,20 @@ stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
 
 # Board configuration block
 "btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4",
-    "tmc2209_uart", "uart_driver_shared_bus" # Onboard drivers
+    "tmc2209_uart", "uart_driver_shared_bus", # Onboard drivers
+    "host-uart"
 ]
 btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5",
     "tmc2209_uart", # Individually-swappable drivers
-    "usb-cdc-acm" # Host communications are over USB instead of UART
+    "host-usb"
 ]
 #btt_octopus = ["stm32f446ze", "driver-qty-8",
 #    "tmc2209_uart" # Individually-swappable drivers
 #]
 
 # Communications block
-usb-cdc-acm = ["dep:embassy-usb"]
+host-usb = ["dep:embassy-usb"]
+host-uart = ["dep:embedded-io"]
 
 # Driver quantity selector
 driver-qty-4 = []
@@ -71,8 +73,8 @@ driver-qty-ge-8 = ["driver-qty-ge-5"]
 driver-qty-ge-10 = ["driver-qty-ge-8"]
 
 # Driver configuration block
-tmc2209_uart = ["dep:tmc2209", "configurable_driver", "stallguard"]
-configurable_driver = []
+tmc2209_uart = ["dep:tmc2209", "uart_configurable_driver", "stallguard"]
+uart_configurable_driver = ["dep:embedded-io"]
 stallguard = []
 uart_soft_half_duplex = [] # Subtle peripheral issues
 uart_driver_shared_bus = [] # Subtle differences in board design
@@ -106,7 +108,7 @@ blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 
 # RPC deps
 embassy-usb = {version = "0.4", optional = true }
-embedded-io = { version = "0.6", features = ["defmt-03"] }
+embedded-io = { version = "0.6", optional = true, features = ["defmt-03"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", features = ["defmt"] }
 

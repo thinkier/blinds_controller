@@ -1,5 +1,6 @@
-mod rpc;
-#[cfg(feature = "usb-cdc-acm")]
-pub mod usb_cdc_acm;
+mod serial_rpc;
+#[cfg(feature = "host-usb")]
+pub mod usb_cdc_acm_rpc;
 
-pub use rpc::*;
+#[cfg(feature = "host-uart")]
+pub use serial_rpc::*;

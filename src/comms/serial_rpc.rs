@@ -4,7 +4,7 @@ use defmt::*;
 use embedded_io::{Read, ReadExactError, ReadReady, Write};
 use serde::{Deserialize, Serialize};
 
-pub struct RpcHandle<const N: usize, IO> {
+pub struct SerialRpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
     pub serial: IO,
 }
@@ -39,7 +39,7 @@ impl<E: embedded_io::Error + Format> Format for RpcError<E> {
     }
 }
 
-impl<const N: usize, IO> RpcHandle<N, IO>
+impl<const N: usize, IO> SerialRpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
 {

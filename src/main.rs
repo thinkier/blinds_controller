@@ -15,16 +15,12 @@ use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
-use portable_atomic::AtomicU8;
+use portable_atomic::AtomicU16;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
-static REVERSALS: AtomicU8 = AtomicU8::new(0);
-static STOPS: AtomicU8 = AtomicU8::new(0);
-#[cfg(feature = "uart_driver_shared_bus")]
-static mut SERIAL_BUFFERS: SerialBuffers<1> = SerialBuffers::default();
-#[cfg(not(feature = "uart_driver_shared_bus"))]
-static mut SERIAL_BUFFERS: SerialBuffers<DRIVERS> = SerialBuffers::default();
+static REVERSALS: AtomicU16 = AtomicU16::new(0);
+static STOPS: AtomicU16 = AtomicU16::new(0);
 static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; DRIVERS]> = StaticCell::new();
 
 pub const DRIVERS: usize = get_driver_count();
@@ -39,7 +35,12 @@ const fn get_driver_count() -> usize {
     } else if cfg!(feature = "driver-qty-10") {
         10
     } else {
-        #[cfg(not(any(feature = "driver-qty-4", feature = "driver-qty-5", feature = "driver-qty-8", feature = "driver-qty-10")))]
+        #[cfg(not(any(
+            feature = "driver-qty-4",
+            feature = "driver-qty-5",
+            feature = "driver-qty-8",
+            feature = "driver-qty-10"
+        )))]
         compile_error!("One driver-qty-{n} flag MUST be defined!");
         0 // Unreachable
     }
@@ -49,14 +50,9 @@ pub const FREQUENCY: u16 = 1000;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    // Once again, a single-purpose buffer that should not be allocated at runtime, so
-    // it is allocated as a static mutable reference (unsafe)
-    #[allow(static_mut_refs)]
-    let serial_buffers = unsafe { &mut SERIAL_BUFFERS };
+    let mut board = Board::init(spawner);
 
-    let mut board = Board::init(spawner, serial_buffers);
-
-    #[cfg(feature = "configurable_driver")]
+    #[cfg(feature = "uart_configurable_driver")]
     {
         use crate::board::ConfigurableDriver;
         board.configure_driver().await;

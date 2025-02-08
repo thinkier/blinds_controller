@@ -1,8 +1,7 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableBoard, EndStopBoard, StepStickBoard};
-use crate::comms::RpcHandle;
+use crate::board::{ConfigurableBoard, StepStickBoard};
+use crate::comms::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
-use core::mem;
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
@@ -22,10 +21,9 @@ pub struct DriverPins<'a> {
 }
 
 pub struct Board<'a, const N: usize, D, H> {
-    pub end_stops: [Option<Input<'a>>; N],
     pub drivers: [DriverPins<'a>; N],
     pub driver_serial: D,
-    pub host_rpc: RpcHandle<256, H>,
+    pub host_rpc: SerialRpcHandle<256, H>,
     // State machines - alternative to an ACT timer on STM controllers
     pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
     pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
@@ -135,19 +133,7 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
     }
 }
 
-impl<const N: usize, D, H> EndStopBoard for Board<'static, N, D, H> {
-    fn bind_endstops(&mut self, spawner: Spawner) {
-        let mut i = 0;
-        for stop in mem::replace(&mut self.end_stops, [const { None }; N]) {
-            if let Some(stop) = stop {
-                let _ = spawner.spawn(stop_detector(i, stop));
-                i += 1;
-            }
-        }
-    }
-}
-
-#[cfg(feature = "configurable_driver")]
+#[cfg(feature = "uart_configurable_driver")]
 impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>
 where
     D: Read + Write,
@@ -159,9 +145,17 @@ where
     }
 }
 
+fn bind_endstops<const N: usize>(spawner: Spawner, inputs: [Input<'static>; N]) {
+    let mut i = 0;
+    for stop in inputs {
+        let _ = spawner.spawn(stop_detector(i, stop));
+        i += 1;
+    }
+}
+
 /// Not universally compatible
 ///
-/// See: https://docs.embassy.dev/embassy-rp/git/rp2040/gpio/struct.Flex.html
+/// See: https://docs.embassy.dev/embassy-rp/git/rp2040/gpio/struct.Input.html
 #[embassy_executor::task(pool_size = DRIVERS)]
 async fn stop_detector(i: usize, mut input: Input<'static>) {
     loop {

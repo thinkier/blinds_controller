@@ -5,7 +5,6 @@ mod stm32;
 #[cfg(feature = "tmc2209_uart")]
 pub mod tmc2209_uart;
 
-use embassy_executor::Spawner;
 use embedded_io::{Read, Write};
 
 #[allow(unused)]
@@ -16,22 +15,10 @@ pub use crate::board::rp::Board;
 #[cfg(feature = "stm32")]
 pub use crate::board::stm32::Board;
 
-
-pub struct SerialBuffers<const N: usize> {
-    driver_tx_buf: [[u8; 32]; N],
-    driver_rx_buf: [[u8; 32]; N],
-    host_tx_buf: [u8; 256],
-    host_rx_buf: [u8; 256],
-}
-
-impl<const N: usize> SerialBuffers<N> {
-    pub(crate) const fn default() -> Self {
-        Self {
-            driver_tx_buf: [[0; 32]; N],
-            driver_rx_buf: [[0; 32]; N],
-            host_tx_buf: [0; 256],
-            host_rx_buf: [0; 256],
-        }
+#[macro_export]
+macro_rules! static_buffer {
+    ($name:tt: $size:literal) => {
+        static $name: static_cell::ConstStaticCell<[u8; $size]> = static_cell::ConstStaticCell::new([0; $size]);
     }
 }
 
@@ -45,17 +32,13 @@ pub trait StepStickBoard {
     fn clear_steps(&mut self, channel: usize);
 }
 
-pub trait EndStopBoard {
-    fn bind_endstops(&mut self, spawner: Spawner);
-}
-
-#[cfg(feature = "configurable_driver")]
+#[cfg(feature = "uart_configurable_driver")]
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 
     fn driver_serial(&mut self, addr: u8) -> &mut Self::DriverSerial;
 }
-#[cfg(feature = "configurable_driver")]
+#[cfg(feature = "uart_configurable_driver")]
 pub trait ConfigurableDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
 }

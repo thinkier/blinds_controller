@@ -1,4 +1,4 @@
-use crate::comms::RpcHandle;
+use crate::comms::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
@@ -22,7 +22,7 @@ pub struct Board<'a, const N: usize, D, H> {
     pub end_stops: [Option<ExtiInput<'a>>; N],
     pub drivers: [Option<DriverPins<'a>>; N],
     pub driver_serial: [D; N],
-    pub host_rpc: RpcHandle<256, H>,
+    pub host_rpc: SerialRpcHandle<256, H>,
 }
 
 impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
@@ -50,13 +50,6 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
         todo!()
     }
 }
-
-impl<'a, const N: usize, D, H> EndStopBoard for Board<'a, N, D, H> {
-    fn bind_endstops(&mut self, spawner: Spawner) {
-        todo!()
-    }
-}
-
 
 #[cfg(feature = "configurable_driver")]
 impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>

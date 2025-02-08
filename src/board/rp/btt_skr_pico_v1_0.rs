@@ -1,15 +1,15 @@
-use embassy_executor::Spawner;
 use crate::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
-use crate::board::rp::{Board, DriverPins};
-use crate::board::{EndStopBoard, SerialBuffers};
-use crate::comms::RpcHandle;
+use crate::board::rp::{bind_endstops, Board, DriverPins};
+use crate::comms::SerialRpcHandle;
+use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, UART0, UART1};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config, Uart};
 use embassy_rp::Peripherals;
-use static_cell::StaticCell;
+use static_cell::{StaticCell};
+use crate::static_buffer;
 
 pub const FREQUENCY: u16 = 1000;
 
@@ -19,12 +19,17 @@ bind_interrupts!(struct Irqs {
     UART1_IRQ => BufferedInterruptHandler<UART1>;
 });
 
+static_buffer!(DRIVER_BUFFER_TX: 32);
+static_buffer!(DRIVER_BUFFER_RX: 32);
+static_buffer!(HOST_BUFFER_TX: 256);
+static_buffer!(HOST_BUFFER_RX: 256);
+
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
 static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
 
 impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0>> {
-    pub fn init(spawner: Spawner, serial_buffers: &'static mut SerialBuffers<1>) -> Self {
+    pub fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(&mut p.PIO0, Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
@@ -59,25 +64,17 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
         uart_cfg.baudrate = 115200;
 
         let driver_serial = Uart::new_blocking(&mut p.UART1, &mut p.PIN_8, &mut p.PIN_9, uart_cfg)
-            .into_buffered(
-                Irqs,
-                &mut serial_buffers.driver_tx_buf[0],
-                &mut serial_buffers.driver_rx_buf[0],
-            );
+            .into_buffered(Irqs, DRIVER_BUFFER_TX.take(), DRIVER_BUFFER_RX.take());
         let host_serial = Uart::new_blocking(&mut p.UART0, &mut p.PIN_0, &mut p.PIN_1, uart_cfg)
-            .into_buffered(
-                Irqs,
-                &mut serial_buffers.host_tx_buf,
-                &mut serial_buffers.host_rx_buf,
-            );
-        let host_rpc = RpcHandle::new(host_serial);
+            .into_buffered(Irqs, HOST_BUFFER_TX.take(), HOST_BUFFER_RX.take());
+        let host_rpc = SerialRpcHandle::new(host_serial);
 
-        let end_stops = [
-            Some(Input::new(&mut p.PIN_4, Pull::Down)),
-            Some(Input::new(&mut p.PIN_25, Pull::Down)),
-            Some(Input::new(&mut p.PIN_3, Pull::Down)),
-            Some(Input::new(&mut p.PIN_16, Pull::Down)),
-        ];
+        bind_endstops(spawner, [
+            Input::new(&mut p.PIN_4, Pull::Down),
+            Input::new(&mut p.PIN_25, Pull::Down),
+            Input::new(&mut p.PIN_3, Pull::Down),
+            Input::new(&mut p.PIN_16, Pull::Down),
+        ]);
         let driver = [
             DriverPins {
                 enable: Output::new(&mut p.PIN_12, Level::High),
@@ -102,8 +99,7 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
         ];
 
 
-        let mut board = Self {
-            end_stops,
+        Self {
             drivers: driver,
             driver_serial,
             host_rpc,
@@ -111,10 +107,6 @@ impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),
             pio0_3: Some(pio0_3),
-        };
-
-        board.bind_endstops(spawner);
-
-        board
+        }
     }
 }

@@ -1,20 +1,20 @@
+use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use crate::board::stm32::{Board, DriverPins};
-use crate::board::SerialBuffers;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::peripherals::USB;
 use embassy_stm32::usart::BufferedUart;
 use embassy_stm32::usb::{Driver, InterruptHandler};
-use crate::comms::RpcHandle;
-use crate::comms::usb_cdc_acm::make_acm;
+use embassy_usb::UsbDevice;
+use crate::comms::usb_cdc_acm_rpc::make_acm;
 
 bind_interrupts!(struct Irqs {
     USB_UCPD1_2 => InterruptHandler<USB>;
 });
 
 impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
-    pub fn init(serial_buffers: &'static mut SerialBuffers<5>) -> Self {
+    pub fn init(spawner: Spawner) -> Self {
         let mut p = embassy_stm32::init(Default::default());
 
         let end_stops: [Option<ExtiInput<'static>>; 5] = [
@@ -56,8 +56,9 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
 
         let driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
         let (usb, acm) = make_acm(driver);
-        let host_rpc;
+        let _ = spawner.spawn(usb_task(usb));
 
+        let host_rpc;
         Board {
             end_stops,
             drivers,
@@ -65,4 +66,9 @@ impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
             host_rpc
         }
     }
+}
+
+#[embassy_executor::task]
+async fn usb_task(mut usb: UsbDevice<Driver<USB>>) {
+    usb.run().await;
 }
