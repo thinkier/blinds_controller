@@ -5,7 +5,7 @@ mod board;
 mod rpc;
 
 use crate::board::*;
-use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, AsyncRpc};
+use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use blinds_sequencer::{
     Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
     WindowDressingSequencer,
@@ -87,7 +87,7 @@ async fn main(spawner: Spawner) {
     loop {
         Timer::after_millis(250).await;
 
-        match board.host_rpc.read() {
+        match board.host_rpc.read().await {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
                     seq[channel as usize].home_fully_opened();
@@ -130,7 +130,7 @@ async fn main(spawner: Spawner) {
                         desired: *seq[channel as usize].get_desired_state(),
                     };
 
-                    if let Err(e) = board.host_rpc.write(&out) {
+                    if let Err(e) = board.host_rpc.write(&out).await {
                         error!("Failed to write Position: {:?}", e);
                     }
                 }
@@ -138,7 +138,7 @@ async fn main(spawner: Spawner) {
                     let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
                     let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
-                    if let Err(e) = board.host_rpc.write(&out) {
+                    if let Err(e) = board.host_rpc.write(&out).await {
                         error!("Failed to write StallGuardResult: {:?}", e);
                     }
                 }
@@ -161,8 +161,6 @@ async fn main(spawner: Spawner) {
                 seq[i].trig_endstop();
                 next_buf[i] = None;
                 board.clear_steps(i);
-                board.set_enabled(i, false);
-                continue;
             }
 
             if board.is_ready_for_steps(i) {
@@ -173,6 +171,12 @@ async fn main(spawner: Spawner) {
                     } else if board.is_stopped(i) && next_resume[i] < now {
                         cur_direction[i] = instr.quality;
                         last_reversal[i] = now;
+
+                        let _ = board.host_rpc.write(&OutgoingRpcPacket::Position {
+                            channel: i as u8,
+                            current: *seq[i].get_current_state(),
+                            desired: *seq[i].get_desired_state(),
+                        }).await;
 
                         match instr.quality {
                             Direction::Hold => {
@@ -202,6 +206,11 @@ async fn main(spawner: Spawner) {
                     next_buf[i] = Some(next);
                 } else if board.is_stopped(i) {
                     board.set_enabled(i, false);
+                    let _ = board.host_rpc.write(&OutgoingRpcPacket::Position {
+                        channel: i as u8,
+                        current: *seq[i].get_current_state(),
+                        desired: *seq[i].get_desired_state(),
+                    }).await;
                 }
             }
         }
