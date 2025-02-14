@@ -1,16 +1,14 @@
 [build]
 target = "thumbv6m-none-eabi"
 
-[target.rp2040]
-runner = "probe-rs run --chip RP2040"  # "elf2uf2-rs -d"
-
-[target.stm32g0b1re]
-runner = "probe-rs run --chip STM32G0B1RE"
-
-[target.stm32f446ze]
-runner = "probe-rs run --chip STM32F446ZE"
+#[target.stm32g0b1re]
+#runner = "probe-rs run --chip STM32G0B1RE"
+#
+#[target.stm32f446ze]
+#runner = "probe-rs run --chip STM32F446ZE"
 
 [target.thumbv6m-none-eabi]
+runner = "probe-rs run --chip RP2040"  # "elf2uf2-rs -d"
 rustflags = [
     "-C", "link-arg=--nmagic",
     "-C", "link-arg=-Tlink.x",
