@@ -105,6 +105,12 @@ where
                     if let Some(sgthrs) = sgthrs {
                         board.set_sg_threshold(channel, sgthrs).await;
                     }
+
+                    board.get_host_rpc().write(&OutgoingRpcPacket::Position {
+                        channel,
+                        current: *seq[channel as usize].get_current_state(),
+                        desired: *seq[channel as usize].get_desired_state(),
+                    })
                 }
                 IncomingRpcPacket::Set {
                     channel,
