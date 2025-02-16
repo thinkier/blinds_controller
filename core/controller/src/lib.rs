@@ -50,6 +50,7 @@ pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
     B: StepStickBoard + ConfigurableBoard<N> + StallGuard<S, N>,
 {
+    info!("Initializing controller...");
     let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Ready {}).await;
 
     let seq = SEQUENCERS.init([
@@ -75,6 +76,7 @@ where
     let mut last_reversal = [Instant::now(); DRIVERS];
     let mut cur_direction = [Direction::Hold; DRIVERS];
 
+    info!("Ready to accept calls");
     loop {
         Timer::after_millis(250).await;
 
@@ -158,6 +160,15 @@ where
                 seq[i].trig_endstop();
                 next_buf[i] = None;
                 board.clear_steps(i);
+
+                let _ = board
+                    .get_host_rpc()
+                    .write(&OutgoingRpcPacket::Position {
+                        channel: i as u8,
+                        current: *seq[i].get_current_state(),
+                        desired: *seq[i].get_desired_state(),
+                    })
+                    .await;
             }
 
             if board.is_ready_for_steps(i) {
@@ -206,14 +217,6 @@ where
                     next_buf[i] = Some(next);
                 } else if board.is_stopped(i) {
                     board.set_enabled(i, false);
-                    let _ = board
-                        .get_host_rpc()
-                        .write(&OutgoingRpcPacket::Position {
-                            channel: i as u8,
-                            current: *seq[i].get_current_state(),
-                            desired: *seq[i].get_desired_state(),
-                        })
-                        .await;
                 }
             }
         }

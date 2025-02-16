@@ -1,5 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Manta E3EZ" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="buildProfileId" value="release" />
     <option name="command" value="run" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/board/btt_manta_e3ez" />
     <envs />
