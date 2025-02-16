@@ -50,7 +50,7 @@ pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
     B: StepStickBoard + ConfigurableBoard<N> + StallGuard<S, N>,
 {
-    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Ready {});
+    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Ready {}).await;
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
@@ -106,11 +106,11 @@ where
                         board.set_sg_threshold(channel, sgthrs).await;
                     }
 
-                    board.get_host_rpc().write(&OutgoingRpcPacket::Position {
+                    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Position {
                         channel,
                         current: *seq[channel as usize].get_current_state(),
                         desired: *seq[channel as usize].get_desired_state(),
-                    })
+                    }).await;
                 }
                 IncomingRpcPacket::Set {
                     channel,
