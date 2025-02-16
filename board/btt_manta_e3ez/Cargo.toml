@@ -15,8 +15,8 @@ embassy-stm32 = { version = "0.2", features = ["stm32g0b1re"] }
 
 embassy-usb = "0.4"
 
-[dependencies.blinds_controller]
-path = "../../core/blinds_controller"
+[dependencies.controller]
+path = "../../core/controller"
 features = ["stm32", "thumbv6m",
     "driver-qty-5",
     "tmc2209_uart", "uart_driver_shared_bus", "stallguard",

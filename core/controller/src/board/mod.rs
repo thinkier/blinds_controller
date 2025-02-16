@@ -5,8 +5,8 @@ pub mod stm32;
 #[cfg(feature = "tmc2209_uart")]
 pub mod tmc2209_uart;
 
-use embedded_io::{Read, Write};
 use crate::rpc::AsyncRpc;
+use embedded_io::{Read, Write};
 
 #[macro_export]
 macro_rules! static_buffer {

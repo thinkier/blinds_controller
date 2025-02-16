@@ -1,4 +1,5 @@
-use blinds_controller::rpc::usb_cdc_acm::{UsbCdcAcmStream};
+use controller::board::stm32::{Board, DriverPins};
+use controller::rpc::usb_cdc_acm::UsbCdcAcmStream;
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;
@@ -7,7 +8,6 @@ use embassy_stm32::peripherals::USB;
 use embassy_stm32::usart::BufferedUart;
 use embassy_stm32::usb::{Driver, InterruptHandler};
 use embassy_usb::UsbDevice;
-use blinds_controller::board::stm32::{Board, DriverPins};
 
 bind_interrupts!(struct Irqs {
     USB_UCPD1_2 => InterruptHandler<USB>;

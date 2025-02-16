@@ -90,28 +90,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
-name = "blinds_controller"
-version = "0.1.0"
-dependencies = [
- "blinds_sequencer",
- "cortex-m",
- "critical-section",
- "defmt",
- "embassy-executor",
- "embassy-rp",
- "embassy-time",
- "embedded-io",
- "fixed",
- "pio",
- "pio-proc",
- "portable-atomic",
- "serde",
- "serde-json-core",
- "static_cell",
- "tmc2209",
-]
-
-[[package]]
 name = "blinds_sequencer"
 version = "0.3.0"
 source = "git+https://github.com/thinkier/blinds_sequencer#79db4adecd4465c20bc8a8c7de4a5318f42d80ab"
@@ -124,7 +102,7 @@ dependencies = [
 name = "btt_skr_pico_v1_0"
 version = "0.1.0"
 dependencies = [
- "blinds_controller",
+ "controller",
  "cortex-m-rt",
  "defmt-rtt",
  "embassy-executor",
@@ -159,6 +137,28 @@ checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
+]
+
+[[package]]
+name = "controller"
+version = "0.1.0"
+dependencies = [
+ "blinds_sequencer",
+ "cortex-m",
+ "critical-section",
+ "defmt",
+ "embassy-executor",
+ "embassy-rp",
+ "embassy-time",
+ "embedded-io",
+ "fixed",
+ "pio",
+ "pio-proc",
+ "portable-atomic",
+ "serde",
+ "serde-json-core",
+ "static_cell",
+ "tmc2209",
 ]
 
 [[package]]

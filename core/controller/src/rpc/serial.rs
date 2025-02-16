@@ -1,4 +1,4 @@
-use crate::rpc::{IncomingRpcPacket, OutgoingRpcPacket, AsyncRpc};
+use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
 use defmt::*;
 use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};

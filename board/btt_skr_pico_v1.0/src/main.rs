@@ -4,8 +4,8 @@
 mod board;
 
 use crate::board::BoardInitialize;
-use blinds_controller::board::rp::Board;
-use blinds_controller::board::ConfigurableDriver;
+use controller::board::rp::Board;
+use controller::board::ConfigurableDriver;
 use embassy_executor::Spawner;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -14,5 +14,5 @@ async fn main(spawner: Spawner) {
     let mut board = Board::init(spawner);
     board.configure_driver().await;
 
-    blinds_controller::run(spawner, board).await;
+    controller::run(spawner, board).await;
 }

@@ -1,5 +1,5 @@
-use defmt::{Format, Formatter};
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
+use defmt::{Format, Formatter};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use embassy_usb::driver::Driver;
 use embassy_usb::{Config, UsbDevice};
@@ -80,7 +80,7 @@ pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
 
 impl<'a, const N: usize, D> AsyncRpc for UsbRpcHandle<'a, N, D>
 where
-    D: Driver<'a>
+    D: Driver<'a>,
 {
     type Error = UsbRpcError;
 
