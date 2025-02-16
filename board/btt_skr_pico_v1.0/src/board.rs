@@ -1,7 +1,7 @@
-use crate::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
-use crate::board::rp::{bind_endstops, Board, DriverPins};
-use crate::rpc::SerialRpcHandle;
-use crate::static_buffer;
+use blinds_controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
+use blinds_controller::board::rp::{bind_endstops, Board, DriverPins};
+use blinds_controller::rpc::SerialRpcHandle;
+use blinds_controller::static_buffer;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -28,8 +28,12 @@ static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
 static PROG: StaticCell<CountedSqrWavProgram<PIO0>> = StaticCell::new();
 
-impl Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0>> {
-    pub fn init(spawner: Spawner) -> Self {
+pub trait BoardInitialize {
+    fn init(spawner: Spawner) -> Self;
+}
+
+impl BoardInitialize for Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0>> {
+    fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(&mut p.PIO0, Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));

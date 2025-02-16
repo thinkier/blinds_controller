@@ -1,8 +1,7 @@
 #![no_std]
-#![no_main]
 
-mod board;
-mod rpc;
+pub mod board;
+pub mod rpc;
 
 use crate::board::*;
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
@@ -17,7 +16,6 @@ use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::AtomicU16;
 use static_cell::StaticCell;
-use {defmt_rtt as _, panic_probe as _};
 
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 static STOPS: AtomicU16 = AtomicU16::new(0);
@@ -48,18 +46,11 @@ const fn get_driver_count() -> usize {
 
 pub const FREQUENCY: u16 = 1000;
 
-#[embassy_executor::main]
-async fn main(spawner: Spawner) {
-    let mut board = Board::init(spawner);
-
-    #[cfg(feature = "uart_configurable_driver")]
-    {
-        use crate::board::ConfigurableDriver;
-        board.configure_driver().await;
-    }
-    info!("Peripherals Initialised");
-
-    let _ = board.host_rpc.write(&OutgoingRpcPacket::Ready {});
+pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
+where
+    B: StepStickBoard + ConfigurableBoard<N> + StallGuard<S, N>,
+{
+    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Ready {});
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
@@ -87,7 +78,7 @@ async fn main(spawner: Spawner) {
     loop {
         Timer::after_millis(250).await;
 
-        match board.host_rpc.read().await {
+        match board.get_host_rpc().read().await {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
                     seq[channel as usize].home_fully_opened();
@@ -130,7 +121,7 @@ async fn main(spawner: Spawner) {
                         desired: *seq[channel as usize].get_desired_state(),
                     };
 
-                    if let Err(e) = board.host_rpc.write(&out).await {
+                    if let Err(e) = board.get_host_rpc().write(&out).await {
                         error!("Failed to write Position: {:?}", e);
                     }
                 }
@@ -138,7 +129,7 @@ async fn main(spawner: Spawner) {
                     let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
                     let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
-                    if let Err(e) = board.host_rpc.write(&out).await {
+                    if let Err(e) = board.get_host_rpc().write(&out).await {
                         error!("Failed to write StallGuardResult: {:?}", e);
                     }
                 }
@@ -172,11 +163,14 @@ async fn main(spawner: Spawner) {
                         cur_direction[i] = instr.quality;
                         last_reversal[i] = now;
 
-                        let _ = board.host_rpc.write(&OutgoingRpcPacket::Position {
-                            channel: i as u8,
-                            current: *seq[i].get_current_state(),
-                            desired: *seq[i].get_desired_state(),
-                        }).await;
+                        let _ = board
+                            .get_host_rpc()
+                            .write(&OutgoingRpcPacket::Position {
+                                channel: i as u8,
+                                current: *seq[i].get_current_state(),
+                                desired: *seq[i].get_desired_state(),
+                            })
+                            .await;
 
                         match instr.quality {
                             Direction::Hold => {
@@ -206,11 +200,14 @@ async fn main(spawner: Spawner) {
                     next_buf[i] = Some(next);
                 } else if board.is_stopped(i) {
                     board.set_enabled(i, false);
-                    let _ = board.host_rpc.write(&OutgoingRpcPacket::Position {
-                        channel: i as u8,
-                        current: *seq[i].get_current_state(),
-                        desired: *seq[i].get_desired_state(),
-                    }).await;
+                    let _ = board
+                        .get_host_rpc()
+                        .write(&OutgoingRpcPacket::Position {
+                            channel: i as u8,
+                            current: *seq[i].get_current_state(),
+                            desired: *seq[i].get_desired_state(),
+                        })
+                        .await;
                 }
             }
         }

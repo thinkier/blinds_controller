@@ -1,0 +1,24 @@
+[package]
+name = "btt_manta_e3ez"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+static_cell = "2"
+
+cortex-m-rt = "0.7"
+embassy-executor = "0.7"
+embassy-stm32 = { version = "0.2", features = ["stm32g0b1re"] }
+
+embassy-usb = "0.4"
+
+[dependencies.blinds_controller]
+path = "../../core/blinds_controller"
+features = ["stm32", "thumbv6m",
+    "driver-qty-5",
+    "tmc2209_uart", "uart_driver_shared_bus", "stallguard",
+    "host-usb"
+]

@@ -1,0 +1,22 @@
+[package]
+name = "btt_skr_pico_v1_0"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+static_cell = "2"
+
+cortex-m-rt = "0.7"
+embassy-executor = "0.7"
+embassy-rp = { version = "0.3", features = ["rp2040"] }
+
+[dependencies.blinds_controller]
+path = "../../core/blinds_controller"
+features = ["rp", "thumbv6m",
+    "driver-qty-4",
+    "tmc2209_uart", "uart_driver_shared_bus", "stallguard",
+    "host-uart"
+]

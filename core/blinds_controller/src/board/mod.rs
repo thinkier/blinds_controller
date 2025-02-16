@@ -1,19 +1,12 @@
 #[cfg(feature = "rp")]
-mod rp;
+pub mod rp;
 #[cfg(feature = "stm32")]
-mod stm32;
+pub mod stm32;
 #[cfg(feature = "tmc2209_uart")]
 pub mod tmc2209_uart;
 
 use embedded_io::{Read, Write};
-
-#[allow(unused)]
-#[cfg(feature = "rp")]
-pub use crate::board::rp::Board;
-
-#[allow(unused)]
-#[cfg(feature = "stm32")]
-pub use crate::board::stm32::Board;
+use crate::rpc::AsyncRpc;
 
 #[macro_export]
 macro_rules! static_buffer {
@@ -25,26 +18,30 @@ macro_rules! static_buffer {
 
 #[allow(clippy::wrong_self_convention)]
 pub trait StepStickBoard {
+    type Rpc: AsyncRpc;
+
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
     fn is_stopped(&mut self, channel: usize) -> bool;
     fn is_ready_for_steps(&mut self, channel: usize) -> bool;
     fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool>;
     fn clear_steps(&mut self, channel: usize);
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc;
 }
 
-#[cfg(feature = "uart_configurable_driver")]
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 
     fn driver_serial(&mut self, addr: u8) -> &mut Self::DriverSerial;
 }
-#[cfg(feature = "uart_configurable_driver")]
+
+#[allow(async_fn_in_trait)]
 pub trait ConfigurableDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
 }
 
 #[cfg(feature = "stallguard")]
+#[allow(async_fn_in_trait)]
 pub trait StallGuard<S, const N: usize> {
     /// StallGuard Threshold, scaled back to 8 bits
     async fn set_sg_threshold(&mut self, channel: u8, sgthrs: u8);

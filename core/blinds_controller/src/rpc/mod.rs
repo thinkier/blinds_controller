@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "host-uart")]
 pub use serial::*;
 
+#[allow(async_fn_in_trait)]
 pub trait AsyncRpc {
     type Error: defmt::Format;
 

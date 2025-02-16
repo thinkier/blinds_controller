@@ -2,18 +2,13 @@
 name = "blinds_controller"
 version = "0.1.0"
 edition = "2021"
-build = "src/build.rs"
 authors = ["thinkier"]
-
-[package.metadata]
-supported_boards = [
-    "btt_skr_pico_v1.0",
-    "btt_manta_e3ez",
-    "btt_octopus"
-]
 
 [features]
 default = []
+
+# Architecture configuration block
+thumbv6m = ["dep:critical-section", "portable-atomic/critical-section"]
 
 # MCU vendor configuration block
 rp = [
@@ -25,38 +20,7 @@ stm32 = [
     "dep:embassy-stm32",
     "embassy-stm32/time-driver-tim2" # Choosing TIM2 as this shouldn't occupy any ACT-capable timers
 ]
-
-# Architecture configuration block
-thumbv6m = [
-    "dep:critical-section", "portable-atomic/critical-section", # No atomic instructions
-]
-thumbv7em-hf = []
-
-# MCU configuration block
-rp2040 = ["rp", "embassy-rp/rp2040",
-    "thumbv6m"
-]
-stm32g0b1re = ["stm32", "embassy-stm32/stm32g0b1re",
-    "thumbv6m",
-    "cortex-m/critical-section-single-core" # Not all STM chips are single-cored so making the selection here
-]
-#stm32f446ze = ["stm32", "embassy-stm32/stm32f446ze",
-#    "thumbv7em-hf",
-#    "cortex-m/critical-section-single-core", # Not all STM chips are single-cored so making the selection here
-#]
-
-# Board configuration block
-"btt_skr_pico_v1.0" = ["rp2040", "driver-qty-4",
-    "tmc2209_uart", "uart_driver_shared_bus", # Onboard drivers
-    "host-uart"
-]
-btt_manta_e3ez = ["stm32g0b1re", "driver-qty-5",
-    "tmc2209_uart", # Individually-swappable drivers
-    "host-usb"
-]
-#btt_octopus = ["stm32f446ze", "driver-qty-8",
-#    "tmc2209_uart" # Individually-swappable drivers
-#]
+_stm32g0b1re = ["dep:embassy-stm32", "embassy-stm32/stm32g0b1re"]
 
 # Communications block
 host-usb = ["dep:embassy-usb"]
@@ -82,12 +46,9 @@ uart_driver_shared_bus = [] # Subtle differences in board design
 [dependencies]
 # Debug deps
 defmt = "0.3"
-defmt-rtt = "0.4"
-panic-probe = { version = "0.3", features = ["print-defmt"] }
 
 # Runtime deps
 cortex-m = "0.7"
-cortex-m-rt = "0.7"
 embassy-executor = { version = "0.7", features = ["defmt", "arch-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
 
@@ -98,7 +59,7 @@ pio = { version = "0.2", optional = true }
 fixed = { version = "1", optional = true }
 
 # STMicroelectronics-specific deps
-embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "memory-x", "time", "exti"] }
+embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "time", "exti"] }
 
 # TMC2209 driver-specific deps
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
@@ -107,18 +68,15 @@ tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 blinds_sequencer = { git = "https://github.com/thinkier/blinds_sequencer" }
 
 # RPC deps
-embassy-usb = {version = "0.4", optional = true }
+embassy-usb = { version = "0.4", optional = true }
 embedded-io = { version = "0.6", optional = true, features = ["defmt-03"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", features = ["defmt"] }
 
 # Memory management deps
 static_cell = "2"
-portable-atomic = { version = "1.10" }
 critical-section = { version = "1", optional = true }
-
-[build-dependencies]
-toml = "0.8"
+portable-atomic = { version = "1.10" }
 
 [profile.release]
 lto = true

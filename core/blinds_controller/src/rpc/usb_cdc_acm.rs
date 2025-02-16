@@ -1,3 +1,5 @@
+use defmt::{Format, Formatter};
+use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use embassy_usb::driver::Driver;
 use embassy_usb::{Config, UsbDevice};
@@ -59,7 +61,34 @@ impl<D: Driver<'static>> UsbCdcAcmStream<'static, D> {
     }
 }
 
+pub enum UsbRpcError {
+    IoError,
+    ParseError(serde_json_core::de::Error),
+    EncodeError(serde_json_core::ser::Error),
+}
+
+impl Format for UsbRpcError {
+    fn format(&self, _fmt: Formatter) {
+        todo!()
+    }
+}
+
 pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
     pub packet_buf: [u8; N],
     pub stream: UsbCdcAcmStream<'a, D>,
+}
+
+impl<'a, const N: usize, D> AsyncRpc for UsbRpcHandle<'a, N, D>
+where
+    D: Driver<'a>
+{
+    type Error = UsbRpcError;
+
+    async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+        todo!()
+    }
+
+    async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error> {
+        todo!()
+    }
 }

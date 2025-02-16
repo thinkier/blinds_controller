@@ -1,6 +1,6 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, StepStickBoard};
-use crate::rpc::SerialRpcHandle;
+use crate::rpc::{SerialRpcHandle};
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;
@@ -8,10 +8,8 @@ use embassy_rp::gpio::{Input, Output};
 use embassy_rp::peripherals::PIO0;
 #[cfg(feature = "driver-qty-ge-5")]
 use embassy_rp::peripherals::PIO1;
-use embedded_io::{Read, Write};
+use embedded_io::{ErrorType, Read, ReadReady, Write};
 
-#[cfg(feature = "btt_skr_pico_v1.0")]
-mod btt_skr_pico_v1_0;
 pub mod utils;
 
 pub struct DriverPins<'a> {
@@ -25,21 +23,27 @@ pub struct Board<'a, const N: usize, D, H> {
     pub driver_serial: D,
     pub host_rpc: SerialRpcHandle<256, H>,
     // State machines - alternative to an ACT timer on STM controllers
-    pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
-    pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
-    pio0_2: Option<CountedSqrWav<'a, PIO0, 2>>,
-    pio0_3: Option<CountedSqrWav<'a, PIO0, 3>>,
+    pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
+    pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
+    pub pio0_2: Option<CountedSqrWav<'a, PIO0, 2>>,
+    pub pio0_3: Option<CountedSqrWav<'a, PIO0, 3>>,
     #[cfg(feature = "driver-qty-ge-5")]
-    pio1_0: Option<CountedSqrWav<'a, PIO1, 0>>,
+    pub pio1_0: Option<CountedSqrWav<'a, PIO1, 0>>,
     #[cfg(feature = "driver-qty-ge-8")]
-    pio1_1: Option<CountedSqrWav<'a, PIO1, 1>>,
+    pub pio1_1: Option<CountedSqrWav<'a, PIO1, 1>>,
     #[cfg(feature = "driver-qty-ge-8")]
-    pio1_2: Option<CountedSqrWav<'a, PIO1, 2>>,
+    pub pio1_2: Option<CountedSqrWav<'a, PIO1, 2>>,
     #[cfg(feature = "driver-qty-ge-8")]
-    pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
+    pub pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
 }
 
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
+impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H>
+where
+    H: Read + ReadReady + Write,
+    <H as ErrorType>::Error: defmt::Format
+{
+    type Rpc = SerialRpcHandle<256, H>;
+
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         if enabled {
             self.drivers[channel].enable.set_low()
@@ -131,6 +135,10 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             _ => None,
         };
     }
+
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
+        &mut self.host_rpc
+    }
 }
 
 #[cfg(feature = "uart_configurable_driver")]
@@ -145,7 +153,7 @@ where
     }
 }
 
-fn bind_endstops<const N: usize>(spawner: Spawner, inputs: [Input<'static>; N]) {
+pub fn bind_endstops<const N: usize>(spawner: Spawner, inputs: [Input<'static>; N]) {
     let mut i = 0;
     for stop in inputs {
         let _ = spawner.spawn(stop_detector(i, stop));

@@ -1,15 +1,12 @@
-use core::marker::PhantomData;
 use crate::board::{ConfigurableBoard, StepStickBoard};
+use crate::rpc::usb_cdc_acm::UsbRpcHandle;
 use crate::{DRIVERS, STOPS};
+use core::marker::PhantomData;
 use core::sync::atomic::Ordering;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::Output;
+use embassy_usb::driver::Driver;
 use embedded_io::{Read, Write};
-
-#[cfg(feature = "btt_manta_e3ez")]
-mod btt_manta_e3ez;
-#[cfg(feature = "btt_octopus")]
-mod btt_octopus;
 
 pub struct DriverPins<'a> {
     pub enable: Output<'a>,
@@ -24,7 +21,12 @@ pub struct Board<'a, const N: usize, D, H> {
     pub host_rpc: PhantomData<H>,
 }
 
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
+impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H>
+where
+    H: Driver<'a>,
+{
+    type Rpc = UsbRpcHandle<'a, 256, H>;
+
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         todo!()
     }
@@ -46,6 +48,10 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
     }
 
     fn clear_steps(&mut self, channel: usize) {
+        todo!()
+    }
+
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         todo!()
     }
 }

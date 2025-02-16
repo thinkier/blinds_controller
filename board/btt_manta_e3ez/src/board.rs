@@ -1,5 +1,4 @@
-use crate::board::stm32::{Board, DriverPins};
-use crate::rpc::usb_cdc_acm::{UsbCdcAcmStream};
+use blinds_controller::rpc::usb_cdc_acm::{UsbCdcAcmStream};
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;
@@ -8,13 +7,18 @@ use embassy_stm32::peripherals::USB;
 use embassy_stm32::usart::BufferedUart;
 use embassy_stm32::usb::{Driver, InterruptHandler};
 use embassy_usb::UsbDevice;
+use blinds_controller::board::stm32::{Board, DriverPins};
 
 bind_interrupts!(struct Irqs {
     USB_UCPD1_2 => InterruptHandler<USB>;
 });
 
-impl Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
-    pub fn init(spawner: Spawner) -> Self {
+pub trait BoardInitialize {
+    fn init(spawner: Spawner) -> Self;
+}
+
+impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
+    fn init(spawner: Spawner) -> Self {
         let mut p = embassy_stm32::init(Default::default());
 
         let end_stops: [Option<ExtiInput<'static>>; 5] = [
