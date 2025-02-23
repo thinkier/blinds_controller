@@ -54,7 +54,13 @@ impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStrea
             }),
         ];
 
-        let mut driver_serial = [];
+        let mut driver_serial = [
+            // PB8,
+            // PC9,
+            // PD0,
+            // PD1,
+            // PB5
+        ];
 
         let usb_driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
         let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);

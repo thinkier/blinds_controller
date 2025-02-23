@@ -5,16 +5,16 @@ pub mod rpc;
 
 use crate::board::*;
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
-use sequencer::{
-    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
-    WindowDressingSequencer,
-};
 use core::mem;
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::AtomicU16;
+use sequencer::{
+    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
+    WindowDressingSequencer,
+};
 use static_cell::StaticCell;
 
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
@@ -48,10 +48,13 @@ pub const FREQUENCY: u16 = 1000;
 
 pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
-    B: StepStickBoard + ConfigurableBoard<N> + StallGuard<S, N>,
+    B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
 {
     info!("Initializing controller...");
-    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Ready {}).await;
+    let _ = board
+        .get_host_rpc()
+        .write(&OutgoingRpcPacket::Ready {})
+        .await;
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
@@ -108,11 +111,14 @@ where
                         board.set_sg_threshold(channel, sgthrs).await;
                     }
 
-                    let _ = board.get_host_rpc().write(&OutgoingRpcPacket::Position {
-                        channel,
-                        current: *seq[channel as usize].get_current_state(),
-                        desired: *seq[channel as usize].get_desired_state(),
-                    }).await;
+                    let _ = board
+                        .get_host_rpc()
+                        .write(&OutgoingRpcPacket::Position {
+                            channel,
+                            current: *seq[channel as usize].get_current_state(),
+                            desired: *seq[channel as usize].get_desired_state(),
+                        })
+                        .await;
                 }
                 IncomingRpcPacket::Set {
                     channel,

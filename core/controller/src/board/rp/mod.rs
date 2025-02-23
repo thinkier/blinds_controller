@@ -1,5 +1,5 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableBoard, StepStickBoard};
+use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
 use crate::rpc::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
@@ -37,13 +37,19 @@ pub struct Board<'a, const N: usize, D, H> {
     pub pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
 }
 
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H>
+impl<'a, const N: usize, D, H> ControllableBoard for Board<'a, N, D, H>
 where
     H: Read + ReadReady + Write,
     <H as ErrorType>::Error: defmt::Format,
 {
     type Rpc = SerialRpcHandle<256, H>;
 
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
+        &mut self.host_rpc
+    }
+}
+
+impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         if enabled {
             self.drivers[channel].enable.set_low()
@@ -134,10 +140,6 @@ where
             7 => self.pio1_3.as_mut().map(|p| p.clear()),
             _ => None,
         };
-    }
-
-    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
-        &mut self.host_rpc
     }
 }
 

@@ -18,14 +18,16 @@ macro_rules! static_buffer {
 
 #[allow(clippy::wrong_self_convention)]
 pub trait StepStickBoard {
-    type Rpc: AsyncRpc;
-
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
     fn is_stopped(&mut self, channel: usize) -> bool;
     fn is_ready_for_steps(&mut self, channel: usize) -> bool;
     fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool>;
     fn clear_steps(&mut self, channel: usize);
+}
+
+pub trait ControllableBoard {
+    type Rpc: AsyncRpc;
     fn get_host_rpc(&mut self) -> &mut Self::Rpc;
 }
 

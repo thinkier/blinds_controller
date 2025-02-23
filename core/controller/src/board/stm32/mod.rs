@@ -1,4 +1,4 @@
-use crate::board::{ConfigurableBoard, StepStickBoard};
+use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-usb")]
 use crate::rpc::usb_cdc_acm::{DriverType, UsbRpcHandle};
 use crate::{DRIVERS, STOPS};
@@ -22,13 +22,19 @@ pub struct Board<'a, const N: usize, D, H> {
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H>
+impl<'a, const N: usize, D, H> ControllableBoard for Board<'a, N, D, H>
 where
     H: DriverType,
     H::Driver: Driver<'a>,
 {
     type Rpc = UsbRpcHandle<'a, 256, H::Driver>;
 
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
+        todo!()
+    }
+}
+
+impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         todo!()
     }
@@ -50,10 +56,6 @@ where
     }
 
     fn clear_steps(&mut self, channel: usize) {
-        todo!()
-    }
-
-    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         todo!()
     }
 }
