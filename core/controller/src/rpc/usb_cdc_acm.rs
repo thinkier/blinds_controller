@@ -21,6 +21,14 @@ const fn config() -> Config<'static> {
     config
 }
 
+pub trait DriverType {
+    type Driver;
+}
+
+impl<'a, D: Driver<'a>> DriverType for UsbCdcAcmStream<'a, D> {
+    type Driver = D;
+}
+
 pub struct UsbCdcAcmStream<'a, D: Driver<'a>> {
     class: CdcAcmClass<'a, D>,
 }
@@ -76,6 +84,12 @@ impl Format for UsbRpcError {
 pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
     pub packet_buf: [u8; N],
     pub stream: UsbCdcAcmStream<'a, D>,
+}
+
+impl<'a, const N: usize, D: Driver<'a>> UsbRpcHandle<'a, N, D> {
+    pub fn new(acm: UsbCdcAcmStream<'a, D>) -> Self {
+        todo!()
+    }
 }
 
 impl<'a, const N: usize, D> AsyncRpc for UsbRpcHandle<'a, N, D>

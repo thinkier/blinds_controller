@@ -1,5 +1,5 @@
 use controller::board::stm32::{Board, DriverPins};
-use controller::rpc::usb_cdc_acm::UsbCdcAcmStream;
+use controller::rpc::usb_cdc_acm::{UsbCdcAcmStream, UsbRpcHandle};
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;
@@ -17,7 +17,7 @@ pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
-impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, BufferedUart<'static>> {
+impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStream<'static, Driver<'static, USB>>> {
     fn init(spawner: Spawner) -> Self {
         let mut p = embassy_stm32::init(Default::default());
 
@@ -56,11 +56,10 @@ impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, BufferedUart<'
 
         let mut driver_serial = [];
 
-        let driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
-        let (usb, acm) = UsbCdcAcmStream::init(driver);
-        let _ = spawner.spawn(usb_task(usb));
+        let usb_driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
+        let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
+        let _ = spawner.spawn(usb_task(usb_device));
 
-        let host_rpc;
         Board {
             end_stops,
             drivers,

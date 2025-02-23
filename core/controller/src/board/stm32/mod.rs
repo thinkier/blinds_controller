@@ -1,7 +1,7 @@
 use crate::board::{ConfigurableBoard, StepStickBoard};
-use crate::rpc::usb_cdc_acm::UsbRpcHandle;
+#[cfg(feature = "host-usb")]
+use crate::rpc::usb_cdc_acm::{DriverType, UsbRpcHandle};
 use crate::{DRIVERS, STOPS};
-use core::marker::PhantomData;
 use core::sync::atomic::Ordering;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::Output;
@@ -18,14 +18,16 @@ pub struct Board<'a, const N: usize, D, H> {
     pub end_stops: [Option<ExtiInput<'a>>; N],
     pub drivers: [Option<DriverPins<'a>>; N],
     pub driver_serial: [D; N],
-    pub host_rpc: PhantomData<H>,
+    pub host_rpc: H,
 }
 
+#[cfg(feature = "host-usb")]
 impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H>
 where
-    H: Driver<'a>,
+    H: DriverType,
+    H::Driver: Driver<'a>,
 {
-    type Rpc = UsbRpcHandle<'a, 256, H>;
+    type Rpc = UsbRpcHandle<'a, 256, H::Driver>;
 
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         todo!()
