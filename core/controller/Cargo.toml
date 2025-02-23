@@ -65,7 +65,7 @@ embassy-stm32 = { version = "0.2", optional = true, features = ["defmt", "rt", "
 tmc2209 = { git = "https://github.com/mitchmindtree/tmc2209", optional = true }
 
 # State management deps
-blinds_sequencer = { path = "../sequencer" }
+sequencer = { path = "../sequencer" }
 
 # RPC deps
 embassy-usb = { version = "0.4", optional = true }

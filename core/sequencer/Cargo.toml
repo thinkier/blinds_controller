@@ -1,0 +1,8 @@
+[package]
+name = "sequencer"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+heapless = ">=0.8"
+serde = { version = "1", default-features = false, features = ["derive"] }

@@ -2,7 +2,7 @@ mod serial;
 #[cfg(feature = "host-usb")]
 pub mod usb_cdc_acm;
 
-use blinds_sequencer::WindowDressingState;
+use sequencer::WindowDressingState;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "host-uart")]
 pub use serial::*;

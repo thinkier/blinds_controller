@@ -78,14 +78,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
-name = "blinds_sequencer"
-version = "0.3.0"
-dependencies = [
- "heapless",
- "serde",
-]
-
-[[package]]
 name = "block-device-driver"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -124,7 +116,6 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "controller"
 version = "0.1.0"
 dependencies = [
- "blinds_sequencer",
  "cortex-m",
  "critical-section",
  "defmt",
@@ -134,6 +125,7 @@ dependencies = [
  "embassy-usb",
  "embedded-io",
  "portable-atomic",
+ "sequencer",
  "serde",
  "serde-json-core",
  "static_cell",
@@ -790,6 +782,14 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "sequencer"
+version = "0.3.0"
+dependencies = [
+ "heapless",
+ "serde",
+]
 
 [[package]]
 name = "serde"

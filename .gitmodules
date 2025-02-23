@@ -1,3 +1,0 @@
-[submodule "core/sequencer"]
-	path = core/sequencer
-	url = https://github.com/thinkier/blinds_sequencer
