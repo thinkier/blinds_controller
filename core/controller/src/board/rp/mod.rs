@@ -8,6 +8,7 @@ use embassy_rp::gpio::{Input, Output};
 use embassy_rp::peripherals::PIO0;
 #[cfg(feature = "driver-qty-ge-5")]
 use embassy_rp::peripherals::PIO1;
+use embassy_time::Timer;
 use embedded_io::{ErrorType, Read, ReadReady, Write};
 
 pub mod utils;
@@ -171,6 +172,7 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
     loop {
         input.wait_for_high().await;
         STOPS.bit_set(i as u32, Ordering::Release);
+        Timer::after_secs(1).await; // Dead Time Insertion
         input.wait_for_low().await;
     }
 }
