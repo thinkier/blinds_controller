@@ -164,7 +164,6 @@ where
             if (stops >> i) & 0b1 == 1 && last_reversal[i] < now + Duration::from_millis(500) {
                 defmt::info!("Endstop triggered");
                 seq[i].trig_endstop();
-                next_buf[i] = None;
                 board.clear_steps(i);
 
                 let _ = board
@@ -175,6 +174,9 @@ where
                         desired: *seq[i].get_desired_state(),
                     })
                     .await;
+
+                // Pull the hold instruction into the buffer
+                next_buf[i] = seq[i].get_next_instruction();
             }
 
             if board.is_ready_for_steps(i) {
