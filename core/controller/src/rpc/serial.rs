@@ -3,11 +3,13 @@ use cortex_m::peripheral::SCB;
 use defmt::*;
 use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
+#[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
     pub packet_buf: [u8; N],
     pub serial: IO,
 }
 
+#[allow(unused)]
 pub enum SerialRpcError<E: embedded_io::Error> {
     IoError(E),
     IoReadExactError(ReadExactError<E>),
@@ -42,6 +44,7 @@ impl<const N: usize, IO> SerialRpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
 {
+    #[allow(unused)]
     pub fn new(serial: IO) -> Self {
         Self {
             packet_buf: [0; N],

@@ -2,6 +2,7 @@ use crate::board::{ConfigurableBoard, ConfigurableDriver, StallGuard};
 use defmt::*;
 use embassy_time::Timer;
 use embedded_io::{ErrorType, Read, Write};
+use tmc2209::data::MicroStepResolution;
 use tmc2209::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
 use tmc2209::{await_read, send_read_request, send_write_request};
 
@@ -21,7 +22,7 @@ where
         gconf.set_mstep_reg_select(true); // Must be written prior to setting MRES in CHOPCONF
         let mut chop = CHOPCONF::default();
         chop.set_vsense(false); // Essential for using the 0R11 external sense resistors on the board, which will program the driver to run at approximately ~1.7A
-        chop.set_mres(0b1000); // Full-step mode (no grinding with PIO SqrWav Generator
+        chop.set_mres(MicroStepResolution::new(0)); // Full-step mode (no grinding with PIO SqrWav Generator
         let tcoolthrs = TCOOLTHRS(0xFFFFF);
         let tpwmthrs = TPWMTHRS(0);
         let slaveconf = SLAVECONF(2 << 8); // Apply minimum SENDDELAY for a multi-driver system
@@ -33,25 +34,25 @@ where
             #[cfg(not(feature = "uart_driver_shared_bus"))]
             let addr = 0;
 
-            if let Err(e) = send_write_request(addr, gconf, ser) {
+            if let Err(e) = send_write_request(addr, gconf, &mut *ser) {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, chop, ser) {
+            if let Err(e) = send_write_request(addr, chop, &mut *ser) {
                 warn!("Failed to program CHOPCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, tcoolthrs, ser) {
+            if let Err(e) = send_write_request(addr, tcoolthrs, &mut *ser) {
                 warn!("Failed to program TCOOLTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, tpwmthrs, ser) {
+            if let Err(e) = send_write_request(addr, tpwmthrs, &mut *ser) {
                 warn!("Failed to program TPWMTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, slaveconf, ser) {
+            if let Err(e) = send_write_request(addr, slaveconf, &mut *ser) {
                 warn!("Failed to program SLAVECONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, coolconf, ser) {
+            if let Err(e) = send_write_request(addr, coolconf, &mut *ser) {
                 warn!("Failed to program COOLCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = send_write_request(addr, sgthrs, ser) {
+            if let Err(e) = send_write_request(addr, sgthrs, &mut *ser) {
                 warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
             }
 
@@ -77,7 +78,7 @@ where
         let addr = 0;
 
         let sgthrs = SGTHRS(sgthrs as u32);
-        if let Err(e) = send_write_request(addr, sgthrs, serial) {
+        if let Err(e) = send_write_request(addr, sgthrs, &mut *serial) {
             warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
         }
         #[cfg(feature = "uart_soft_half_duplex")]
@@ -93,7 +94,7 @@ where
         #[cfg(not(feature = "uart_driver_shared_bus"))]
         let addr = 0;
 
-        if let Err(e) = send_read_request::<SG_RESULT, _>(addr, serial) {
+        if let Err(e) = send_read_request::<SG_RESULT, _>(addr, &mut *serial) {
             defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", addr, e);
             return None;
         }

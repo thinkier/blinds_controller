@@ -1,5 +1,6 @@
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
+use embassy_rp::Peri;
 use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
 use fixed::traits::ToFixed;
 
@@ -18,7 +19,7 @@ pub struct CountedSqrWavProgram<'a, PIO: Instance> {
 
 impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
-        let prg = pio_proc::pio_asm!(
+        let prg = pio::pio_asm!(
             ".side_set 1 opt"
             ".wrap_target"
 
@@ -52,7 +53,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     pub fn new(
         pio: &mut Common<'a, PIO>,
         sm: &'a mut StateMachine<'a, PIO, SM>,
-        pin: &'a mut impl PioPin,
+        pin: Peri<'a, impl PioPin + 'a>,
         program: &'a CountedSqrWavProgram<'a, PIO>,
         frequency: u16,
     ) -> Self {

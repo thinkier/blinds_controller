@@ -7,7 +7,7 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, UART0, UART1};
 use embassy_rp::pio::{InterruptHandler, Pio};
-use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config, Uart};
+use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
 use embassy_rp::Peripherals;
 use static_cell::StaticCell;
 
@@ -32,78 +32,71 @@ pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
-impl BoardInitialize
-    for Board<'static, 4, BufferedUart<'static, UART1>, BufferedUart<'static, UART0>>
-{
+impl BoardInitialize for Board<'static, 4, BufferedUart, BufferedUart> {
     fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
-        let pio = PIO0.init(Pio::new(&mut p.PIO0, Irqs));
+        let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
 
-        let pio0_0 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm0,
-            &mut p.PIN_11,
-            prog,
-            FREQUENCY,
-        );
-        let pio0_1 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm1,
-            &mut p.PIN_19,
-            prog,
-            FREQUENCY,
-        );
+        let pio0_0 = CountedSqrWav::new(&mut pio.common, &mut pio.sm0, p.PIN_11.reborrow(), prog, FREQUENCY);
+        let pio0_1 = CountedSqrWav::new(&mut pio.common, &mut pio.sm1, p.PIN_19.reborrow(), prog, FREQUENCY);
 
-        let pio0_2 =
-            CountedSqrWav::new(&mut pio.common, &mut pio.sm2, &mut p.PIN_6, prog, FREQUENCY);
+        let pio0_2 = CountedSqrWav::new(&mut pio.common, &mut pio.sm2, p.PIN_6.reborrow(), prog, FREQUENCY);
 
-        let pio0_3 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm3,
-            &mut p.PIN_14,
-            prog,
-            FREQUENCY,
-        );
+        let pio0_3 = CountedSqrWav::new(&mut pio.common, &mut pio.sm3, p.PIN_14.reborrow(), prog, FREQUENCY);
 
         let mut uart_cfg = Config::default();
         uart_cfg.baudrate = 115200;
 
-        let driver_serial = Uart::new_blocking(&mut p.UART1, &mut p.PIN_8, &mut p.PIN_9, uart_cfg)
-            .into_buffered(Irqs, DRIVER_BUFFER_TX.take(), DRIVER_BUFFER_RX.take());
-        let host_serial = Uart::new_blocking(&mut p.UART0, &mut p.PIN_0, &mut p.PIN_1, uart_cfg)
-            .into_buffered(Irqs, HOST_BUFFER_TX.take(), HOST_BUFFER_RX.take());
+        let driver_serial = BufferedUart::new(
+            p.UART1.reborrow(),
+            p.PIN_8.reborrow(),
+            p.PIN_9.reborrow(),
+            Irqs,
+            DRIVER_BUFFER_TX.take(),
+            DRIVER_BUFFER_RX.take(),
+            uart_cfg,
+        );
+        let host_serial = BufferedUart::new(
+            p.UART0.reborrow(),
+            p.PIN_0.reborrow(),
+            p.PIN_1.reborrow(),
+            Irqs,
+            HOST_BUFFER_TX.take(),
+            HOST_BUFFER_RX.take(),
+            uart_cfg,
+        );
         let host_rpc = SerialRpcHandle::new(host_serial);
 
         bind_endstops(
             spawner,
             [
-                Input::new(&mut p.PIN_4, Pull::Down),
-                Input::new(&mut p.PIN_25, Pull::Down),
-                Input::new(&mut p.PIN_3, Pull::Down),
-                Input::new(&mut p.PIN_16, Pull::Down),
+                Input::new(p.PIN_4.reborrow(), Pull::Down),
+                Input::new(p.PIN_25.reborrow(), Pull::Down),
+                Input::new(p.PIN_3.reborrow(), Pull::Down),
+                Input::new(p.PIN_16.reborrow(), Pull::Down),
             ],
         );
         let driver = [
             DriverPins {
-                enable: Output::new(&mut p.PIN_12, Level::High),
-                // step: Output::new(&mut p.PIN_11, Level::Low),
-                dir: Output::new(&mut p.PIN_10, Level::Low),
+                enable: Output::new(p.PIN_12.reborrow(), Level::High),
+                // step: Output::new(p.PIN_11.reborrow(), Level::Low),
+                dir: Output::new(p.PIN_10.reborrow(), Level::Low),
             },
             DriverPins {
-                enable: Output::new(&mut p.PIN_2, Level::High),
-                // step: Output::new(&mut p.PIN_19, Level::Low),
-                dir: Output::new(&mut p.PIN_28, Level::Low),
+                enable: Output::new(p.PIN_2.reborrow(), Level::High),
+                // step: Output::new(p.PIN_19.reborrow(), Level::Low),
+                dir: Output::new(p.PIN_28.reborrow(), Level::Low),
             },
             DriverPins {
-                enable: Output::new(&mut p.PIN_7, Level::High),
-                // step: Output::new(&mut p.PIN_6, Level::Low),
-                dir: Output::new(&mut p.PIN_5, Level::Low),
+                enable: Output::new(p.PIN_7.reborrow(), Level::High),
+                // step: Output::new(p.PIN_6.reborrow(), Level::Low),
+                dir: Output::new(p.PIN_5.reborrow(), Level::Low),
             },
             DriverPins {
-                enable: Output::new(&mut p.PIN_15, Level::High),
-                // step: Output::new(&mut p.PIN_14, Level::Low),
-                dir: Output::new(&mut p.PIN_13, Level::Low),
+                enable: Output::new(p.PIN_15.reborrow(), Level::High),
+                // step: Output::new(p.PIN_14.reborrow(), Level::Low),
+                dir: Output::new(p.PIN_13.reborrow(), Level::Low),
             },
         ];
 

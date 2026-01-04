@@ -4,5 +4,5 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-heapless = ">=0.8"
+heapless = ">=0.9"
 serde = { version = "1", default-features = false, features = ["derive"] }
