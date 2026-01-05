@@ -5,7 +5,7 @@ use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
 use embassy_stm32::peripherals::USB;
-use embassy_stm32::usart::BufferedUart;
+use embassy_stm32::usart::{BufferedUart, Config};
 use embassy_stm32::usb::{Driver, InterruptHandler};
 use embassy_usb::UsbDevice;
 
@@ -17,7 +17,9 @@ pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
-impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStream<'static, Driver<'static, USB>>> {
+impl BoardInitialize
+    for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStream<'static, Driver<'static, USB>>>
+{
     fn init(spawner: Spawner) -> Self {
         let mut p = embassy_stm32::init(Default::default());
 
@@ -54,12 +56,14 @@ impl BoardInitialize for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStrea
             }),
         ];
 
+        let mut uart_cfg = Config::default();
+        uart_cfg.baudrate = 115200;
         let mut driver_serial = [
-            // PB8,
-            // PC9,
-            // PD0,
-            // PD1,
-            // PB5
+            // PB8, // USART3 or USART6
+            // PC9, // Bitbanged
+            // PD0, // Bitbanged
+            // PD1, // Bitbanged
+            // PB5 // Bitbanged
         ];
 
         let usb_driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
