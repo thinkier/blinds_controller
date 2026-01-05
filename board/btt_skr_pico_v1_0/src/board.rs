@@ -1,9 +1,9 @@
 use controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use controller::board::rp::{bind_endstops, Board, DriverPins};
-#[cfg(feature = "host-usb")]
-use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
 #[cfg(feature = "host-uart")]
 use controller::rpc::SerialRpcHandle;
+#[cfg(feature = "host-usb")]
+use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
 use controller::static_buffer;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;

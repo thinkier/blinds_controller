@@ -1,9 +1,9 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
-#[cfg(feature = "host-usb")]
-use crate::rpc::UsbRpcHandle;
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
+#[cfg(feature = "host-usb")]
+use crate::rpc::UsbRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_executor::Spawner;

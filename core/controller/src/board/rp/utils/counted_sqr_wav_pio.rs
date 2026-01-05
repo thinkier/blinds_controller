@@ -1,7 +1,7 @@
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
-use embassy_rp::Peri;
 use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
+use embassy_rp::Peri;
 use fixed::traits::ToFixed;
 
 /// This program is intended to run on a 10:1 ratio i.e. 10 PIO cycles per output cycle
