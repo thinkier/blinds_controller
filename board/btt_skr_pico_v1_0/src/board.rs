@@ -1,22 +1,25 @@
 use controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use controller::board::rp::{bind_endstops, Board, DriverPins};
-use controller::rpc::SerialRpcHandle;
+use controller::rpc::usb_cdc_acm::{UsbCdcAcmStream, UsbRpcHandle};
 use controller::static_buffer;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::{PIO0, UART0, UART1};
-use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_rp::peripherals::{PIO0, UART0, UART1, USB};
+use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
+use embassy_rp::usb::{Driver, InterruptHandler as UsbInterruptHandler};
 use embassy_rp::Peripherals;
+use embassy_usb::UsbDevice;
 use static_cell::StaticCell;
 
 pub const FREQUENCY: u16 = 1000;
 
 bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+    PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
     UART0_IRQ => BufferedInterruptHandler<UART0>;
     UART1_IRQ => BufferedInterruptHandler<UART1>;
+    USBCTRL_IRQ => UsbInterruptHandler<USB>;
 });
 
 static_buffer!(DRIVER_BUFFER_TX: 32);
@@ -32,18 +35,44 @@ pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
-impl BoardInitialize for Board<'static, 4, BufferedUart, BufferedUart> {
+impl BoardInitialize
+    for Board<'static, 4, BufferedUart, UsbRpcHandle<'static, 256, Driver<'static, USB>>>
+{
     fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
 
-        let pio0_0 = CountedSqrWav::new(&mut pio.common, &mut pio.sm0, p.PIN_11.reborrow(), prog, FREQUENCY);
-        let pio0_1 = CountedSqrWav::new(&mut pio.common, &mut pio.sm1, p.PIN_19.reborrow(), prog, FREQUENCY);
+        let pio0_0 = CountedSqrWav::new(
+            &mut pio.common,
+            &mut pio.sm0,
+            p.PIN_11.reborrow(),
+            prog,
+            FREQUENCY,
+        );
+        let pio0_1 = CountedSqrWav::new(
+            &mut pio.common,
+            &mut pio.sm1,
+            p.PIN_19.reborrow(),
+            prog,
+            FREQUENCY,
+        );
 
-        let pio0_2 = CountedSqrWav::new(&mut pio.common, &mut pio.sm2, p.PIN_6.reborrow(), prog, FREQUENCY);
+        let pio0_2 = CountedSqrWav::new(
+            &mut pio.common,
+            &mut pio.sm2,
+            p.PIN_6.reborrow(),
+            prog,
+            FREQUENCY,
+        );
 
-        let pio0_3 = CountedSqrWav::new(&mut pio.common, &mut pio.sm3, p.PIN_14.reborrow(), prog, FREQUENCY);
+        let pio0_3 = CountedSqrWav::new(
+            &mut pio.common,
+            &mut pio.sm3,
+            p.PIN_14.reborrow(),
+            prog,
+            FREQUENCY,
+        );
 
         let mut uart_cfg = Config::default();
         uart_cfg.baudrate = 115200;
@@ -57,16 +86,11 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, BufferedUart> {
             DRIVER_BUFFER_RX.take(),
             uart_cfg,
         );
-        let host_serial = BufferedUart::new(
-            p.UART0.reborrow(),
-            p.PIN_0.reborrow(),
-            p.PIN_1.reborrow(),
-            Irqs,
-            HOST_BUFFER_TX.take(),
-            HOST_BUFFER_RX.take(),
-            uart_cfg,
-        );
-        let host_rpc = SerialRpcHandle::new(host_serial);
+
+        let usb_driver = Driver::new(p.USB.reborrow(), Irqs);
+        let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
+        let _ = spawner.spawn(usb_task(usb_device));
+        let host_rpc = UsbRpcHandle::new(host_rpc);
 
         bind_endstops(
             spawner,
@@ -110,4 +134,9 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, BufferedUart> {
             pio0_3: Some(pio0_3),
         }
     }
+}
+
+#[embassy_executor::task]
+async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
+    usb.run().await;
 }

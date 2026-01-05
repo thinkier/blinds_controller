@@ -12,13 +12,14 @@ static_cell = "2"
 cortex-m-rt = "0.7"
 embassy-executor = "0.9.1"
 embassy-rp = { version = "0.9.0", features = ["rp2040"] }
+embassy-usb = "0.5.1"
 
 [dependencies.controller]
 path = "../../core/controller"
 features = ["rp", "thumbv6m",
     "driver-qty-4",
     "tmc2209_uart", "uart_driver_shared_bus", "stallguard",
-    "host-uart"
+    "host-usb"
 ]
 
 [profile.release]

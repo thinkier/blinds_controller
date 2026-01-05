@@ -1,5 +1,8 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
+#[cfg(feature = "host-usb")]
+use crate::rpc::usb_cdc_acm::UsbRpcHandle;
+#[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
@@ -9,7 +12,11 @@ use embassy_rp::peripherals::PIO0;
 #[cfg(feature = "driver-qty-ge-5")]
 use embassy_rp::peripherals::PIO1;
 use embassy_time::Timer;
-use embedded_io::{ErrorType, Read, ReadReady, Write};
+#[cfg(feature = "host-usb")]
+use embassy_usb::driver::Driver;
+#[cfg(feature = "host-uart")]
+use embedded_io::{ErrorType, ReadReady};
+use embedded_io::{Read, Write};
 
 pub mod utils;
 
@@ -22,7 +29,7 @@ pub struct DriverPins<'a> {
 pub struct Board<'a, const N: usize, D, H> {
     pub drivers: [DriverPins<'a>; N],
     pub driver_serial: D,
-    pub host_rpc: SerialRpcHandle<256, H>,
+    pub host_rpc: H,
     // State machines - alternative to an ACT timer on STM controllers
     pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
     pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
@@ -38,12 +45,25 @@ pub struct Board<'a, const N: usize, D, H> {
     pub pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
 }
 
-impl<'a, const N: usize, D, H> ControllableBoard for Board<'a, N, D, H>
+#[cfg(feature = "host-uart")]
+impl<'a, const N: usize, D, IO> ControllableBoard for Board<'a, N, D, SerialRpcHandle<256, IO>>
 where
-    H: Read + ReadReady + Write,
-    <H as ErrorType>::Error: defmt::Format,
+    IO: Read + ReadReady + Write,
+    <IO as ErrorType>::Error: defmt::Format,
 {
-    type Rpc = SerialRpcHandle<256, H>;
+    type Rpc = SerialRpcHandle<256, IO>;
+
+    fn get_host_rpc(&mut self) -> &mut Self::Rpc {
+        &mut self.host_rpc
+    }
+}
+
+#[cfg(feature = "host-usb")]
+impl<'a, const N: usize, D, IO> ControllableBoard for Board<'a, N, D, UsbRpcHandle<'a, 256, IO>>
+where
+    IO: Driver<'a>,
+{
+    type Rpc = UsbRpcHandle<'a, 256, IO>;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
