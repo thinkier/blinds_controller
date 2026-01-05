@@ -1,5 +1,5 @@
 use controller::board::stm32::{Board, DriverPins};
-use controller::rpc::usb_cdc_acm::{UsbCdcAcmStream, UsbRpcHandle};
+use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::ExtiInput;

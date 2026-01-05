@@ -1,6 +1,6 @@
 use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-usb")]
-use crate::rpc::usb_cdc_acm::{DriverType, UsbRpcHandle};
+use crate::rpc::{DriverType, UsbRpcHandle};
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use embassy_stm32::exti::ExtiInput;

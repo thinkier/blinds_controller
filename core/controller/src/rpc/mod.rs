@@ -1,11 +1,14 @@
+#[cfg(feature = "host-uart")]
 mod serial;
 #[cfg(feature = "host-usb")]
-pub mod usb_cdc_acm;
+mod usb_cdc_acm;
 
 use sequencer::WindowDressingState;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "host-uart")]
 pub use serial::*;
+#[cfg(feature = "host-usb")]
+pub use usb_cdc_acm::*;
 
 #[allow(async_fn_in_trait)]
 pub trait AsyncRpc {

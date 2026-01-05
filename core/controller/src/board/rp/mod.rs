@@ -1,7 +1,7 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
 use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-usb")]
-use crate::rpc::usb_cdc_acm::UsbRpcHandle;
+use crate::rpc::UsbRpcHandle;
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 use crate::{DRIVERS, STOPS};

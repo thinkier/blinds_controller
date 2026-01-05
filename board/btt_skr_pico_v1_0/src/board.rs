@@ -1,6 +1,9 @@
 use controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use controller::board::rp::{bind_endstops, Board, DriverPins};
-use controller::rpc::usb_cdc_acm::{UsbCdcAcmStream, UsbRpcHandle};
+#[cfg(feature = "host-usb")]
+use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
+#[cfg(feature = "host-uart")]
+use controller::rpc::SerialRpcHandle;
 use controller::static_buffer;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
@@ -8,8 +11,11 @@ use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, UART0, UART1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
-use embassy_rp::usb::{Driver, InterruptHandler as UsbInterruptHandler};
+#[cfg(feature = "host-usb")]
+use embassy_rp::usb::Driver;
+use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
 use embassy_rp::Peripherals;
+#[cfg(feature = "host-usb")]
 use embassy_usb::UsbDevice;
 use static_cell::StaticCell;
 
@@ -35,9 +41,12 @@ pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
-impl BoardInitialize
-    for Board<'static, 4, BufferedUart, UsbRpcHandle<'static, 256, Driver<'static, USB>>>
-{
+#[cfg(feature = "host-uart")]
+pub type HD = SerialRpcHandle<256, BufferedUart>;
+#[cfg(feature = "host-usb")]
+pub type HD = UsbRpcHandle<'static, 256, Driver<'static, USB>>;
+
+impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
     fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
@@ -87,10 +96,27 @@ impl BoardInitialize
             uart_cfg,
         );
 
-        let usb_driver = Driver::new(p.USB.reborrow(), Irqs);
-        let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
-        let _ = spawner.spawn(usb_task(usb_device));
-        let host_rpc = UsbRpcHandle::new(host_rpc);
+        #[cfg(feature = "host-uart")]
+        let host_rpc = {
+            let host_serial = BufferedUart::new(
+                p.UART0.reborrow(),
+                p.PIN_0.reborrow(),
+                p.PIN_1.reborrow(),
+                Irqs,
+                HOST_BUFFER_TX.take(),
+                HOST_BUFFER_RX.take(),
+                uart_cfg,
+            );
+            SerialRpcHandle::new(host_serial)
+        };
+
+        #[cfg(feature = "host-usb")]
+        let host_rpc = {
+            let usb_driver = Driver::new(p.USB.reborrow(), Irqs);
+            let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
+            let _ = spawner.spawn(usb_task(usb_device));
+            UsbRpcHandle::new(host_rpc)
+        };
 
         bind_endstops(
             spawner,
@@ -136,6 +162,7 @@ impl BoardInitialize
     }
 }
 
+#[cfg(feature = "host-usb")]
 #[embassy_executor::task]
 async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
     usb.run().await;
