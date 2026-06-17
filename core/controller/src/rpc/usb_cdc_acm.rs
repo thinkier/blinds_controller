@@ -108,7 +108,7 @@ where
             return Ok(Some(IncomingRpcPacket::Bootloader));
         }
 
-        while self.packet_buf[self.packet_cursor] != 0x00{
+        while self.packet_buf[self.packet_cursor-1] != 0x00 {
             let len = self.stream.class.read_packet(&mut self.packet_buf[self.packet_cursor..]).await
             .map_err(|_|UsbRpcError::IoError)?;
 
