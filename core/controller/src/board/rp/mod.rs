@@ -185,7 +185,7 @@ where
 pub fn bind_endstops<const N: usize>(spawner: Spawner, inputs: [Input<'static>; N]) {
     let mut i = 0;
     for stop in inputs {
-        let _ = spawner.spawn(stop_detector(i, stop));
+        let _ = spawner.spawn(stop_detector(i, stop).unwrap());
         i += 1;
     }
 }

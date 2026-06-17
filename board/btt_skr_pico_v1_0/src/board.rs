@@ -114,7 +114,7 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
         let host_rpc = {
             let usb_driver = Driver::new(p.USB.reborrow(), Irqs);
             let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
-            let _ = spawner.spawn(usb_task(usb_device));
+            let _ = spawner.spawn(usb_task(usb_device).unwrap());
             UsbRpcHandle::new(host_rpc)
         };
 
