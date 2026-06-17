@@ -6,6 +6,7 @@ pub mod stm32;
 pub mod tmc2209_uart;
 
 use crate::rpc::AsyncRpc;
+#[cfg(feature = "uart_configurable_driver")]
 use embedded_io::{Read, Write};
 
 #[macro_export]
@@ -28,9 +29,12 @@ pub trait StepStickBoard {
 
 pub trait ControllableBoard {
     type Rpc: AsyncRpc;
+
     fn get_host_rpc(&mut self) -> &mut Self::Rpc;
+    fn enter_bootloader(&mut self);
 }
 
+#[cfg(feature = "uart_configurable_driver")]
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 

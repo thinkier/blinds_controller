@@ -56,6 +56,9 @@ where
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
     }
+    fn enter_bootloader(&mut self) {
+        embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+    }
 }
 
 #[cfg(feature = "host-usb")]
@@ -67,6 +70,9 @@ where
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
+    }
+    fn enter_bootloader(&mut self) {
+        embassy_rp::rom_data::reset_to_usb_boot(0, 0);
     }
 }
 

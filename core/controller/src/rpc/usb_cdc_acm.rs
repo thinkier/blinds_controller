@@ -83,12 +83,17 @@ impl Format for UsbRpcError {
 
 pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
     pub packet_buf: [u8; N],
+    pub packet_cursor: usize,
     pub stream: UsbCdcAcmStream<'a, D>,
 }
 
 impl<'a, const N: usize, D: Driver<'a>> UsbRpcHandle<'a, N, D> {
     pub fn new(acm: UsbCdcAcmStream<'a, D>) -> Self {
-        todo!()
+        Self {
+            packet_buf: [0u8; N],
+            packet_cursor: 0,
+            stream: acm,
+        }
     }
 }
 
@@ -99,10 +104,40 @@ where
     type Error = UsbRpcError;
 
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
-        todo!()
+        if self.stream.class.line_coding().data_rate() <= 1200 {
+            return Ok(Some(IncomingRpcPacket::Bootloader));
+        }
+
+        while self.packet_buf[self.packet_cursor] != 0x00{
+            let len = self.stream.class.read_packet(&mut self.packet_buf[self.packet_cursor..]).await
+            .map_err(|_|UsbRpcError::IoError)?;
+
+            self.packet_cursor += len;
+        }
+
+        let packet = serde_json_core::from_slice(&mut self.packet_buf[0..self.packet_cursor])
+            .map_err(|e| UsbRpcError::ParseError(e))?
+            .0;
+
+        Ok(Some(packet))
     }
 
     async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error> {
-        todo!()
+        let len = serde_json_core::to_slice(&packet, &mut self.packet_buf)
+            .map_err(|e| UsbRpcError::EncodeError(e))?;
+
+        // Guaranteed null byte termination
+        self.packet_buf[len] = 0x00;
+        let len = len + 1;
+
+        let size = self.stream.class.max_packet_size() as usize;
+        for range in 0..=(len/size) {
+            let window = range * size..(range * size + size);
+
+            self.stream.class.write_packet(&self.packet_buf[window]).await
+                .map_err(|_|UsbRpcError::IoError)?;
+        }
+
+        Ok(())
     }
 }

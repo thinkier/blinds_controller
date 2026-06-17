@@ -46,6 +46,7 @@ const fn get_driver_count() -> usize {
 
 pub const FREQUENCY: u16 = 1000;
 
+#[cfg(feature = "stallguard")]
 pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
     B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
@@ -146,6 +147,9 @@ where
                     if let Err(e) = board.get_host_rpc().write(&out).await {
                         error!("Failed to write StallGuardResult: {:?}", e);
                     }
+                }
+                IncomingRpcPacket::Bootloader => {
+                    board.enter_bootloader();
                 }
             },
             Ok(None) => {

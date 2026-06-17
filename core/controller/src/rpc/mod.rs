@@ -46,6 +46,8 @@ pub enum IncomingRpcPacket {
     GetStallGuardResult {
         channel: u8,
     },
+    #[serde(skip)]
+    Bootloader
 }
 
 #[derive(Serialize)]
