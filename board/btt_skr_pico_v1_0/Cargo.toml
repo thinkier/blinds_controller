@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["host-usb"]
+default = ["host-uart"]
 host-uart = ["controller/host-uart"]
 host-usb = ["controller/host-usb", "dep:embassy-usb"]
 

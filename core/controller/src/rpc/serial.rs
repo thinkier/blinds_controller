@@ -71,11 +71,19 @@ where
             SCB::sys_reset();
         }
         self.serial.read_exact(&mut self.packet_buf[0..len])?;
-        let packet = serde_json_core::from_slice(&mut self.packet_buf[0..len])
-            .map_err(|e| SerialRpcError::ParseError(e))?
-            .0;
+        match serde_json_core::from_slice(&mut self.packet_buf[0..len]) {
+            Ok((packet, _)) => {
+                Ok(Some(packet))
+            }
+            Err(err) => {
+                // Hint to host of malformed packet,
+                // if the host doesn't know to look for this,
+                // it would read it as a zero-length packet and skip over it.
+                self.serial.write(&[0u8])?;
 
-        Ok(Some(packet))
+                Err(SerialRpcError::ParseError(err))
+            }
+        }
     }
 
     async fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
