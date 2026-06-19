@@ -30,8 +30,9 @@ bind_interrupts!(struct Irqs {
 
 static_buffer!(DRIVER_BUFFER_TX: 32);
 static_buffer!(DRIVER_BUFFER_RX: 32);
-static_buffer!(HOST_BUFFER_TX: 256);
-static_buffer!(HOST_BUFFER_RX: 256);
+// Give a few extra bytes for head / tail due to number of overruns
+static_buffer!(HOST_BUFFER_TX: 260);
+static_buffer!(HOST_BUFFER_RX: 260);
 
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
