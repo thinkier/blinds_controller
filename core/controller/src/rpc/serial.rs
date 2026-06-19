@@ -1,4 +1,3 @@
-use crate::rpc::SerialRpcError::IoError;
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
 use defmt::*;
@@ -79,7 +78,7 @@ where
                 0x00 => SCB::sys_reset(),
                 b'\n' => {
                     return serde_json_core::from_slice(&mut incoming_packet_buf[0..=i])
-                        .map_ok(|(item, _)| item)
+                        .map(|(item, _)| Some(item))
                         .map_err(|e| SerialRpcError::ParseError(e));
                 }
                 _ => i += 1,
@@ -93,6 +92,7 @@ where
             match drain[0] {
                 0x00 => SCB::sys_reset(),
                 b'\n' => break,
+                _ => {}
             }
         }
         info!("Recovered from buffer saturation, exiting back to caller...");
