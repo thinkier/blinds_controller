@@ -2,7 +2,11 @@
 target = "thumbv6m-none-eabi"
 
 [target.thumbv6m-none-eabi]
-runner = "probe-rs run --chip RP2040"  # "elf2uf2-rs -d"
+runner = [
+    "./remote-run.sh",
+    # "elf2uf2-rs -d",
+    # "probe-rs run --chip RP2040"
+]
 rustflags = [
     "-C", "link-arg=--nmagic",
     "-C", "link-arg=-Tlink.x",
