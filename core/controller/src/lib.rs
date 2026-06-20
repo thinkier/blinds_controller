@@ -46,7 +46,27 @@ const fn get_driver_count() -> usize {
 
 pub const FREQUENCY: u16 = 1000;
 
-#[cfg(feature = "stallguard")]
+struct RunState<const N: usize> {
+    next_buf: [Option<WindowDressingInstruction>; N],
+    next_resume: [Instant; N],
+    cur_direction: [Direction; N],
+}
+
+impl<const N: usize> Default for RunState<N> {
+    fn default() -> Self {
+        RunState {
+            next_buf: [None; N],
+            next_resume: [Instant::now(); N],
+            cur_direction: [Direction::Hold; N],
+        }
+    }
+}
+
+#[cfg(all(
+    any(feature = "host-uart", feature = "host-usb"),
+    feature = "uart_configurable_driver",
+    feature = "stallguard"
+))]
 pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
     B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
@@ -75,10 +95,7 @@ where
         #[cfg(any(feature = "driver-qty-ge-10"))]
         HaltingSequencer::new_roller(100_000),
     ]);
-    let mut next_buf: [Option<WindowDressingInstruction>; DRIVERS] = [None; DRIVERS];
-    let mut next_resume = [Instant::now(); DRIVERS];
-    let mut last_reversal = [Instant::now(); DRIVERS];
-    let mut cur_direction = [Direction::Hold; DRIVERS];
+    let mut state = RunState::<DRIVERS>::default();
 
     info!("Ready to accept calls");
     loop {
@@ -162,77 +179,116 @@ where
             }
         }
 
-        let stops = STOPS.swap(0, Ordering::AcqRel);
+        let stopped = endstop_check(&mut board, seq, &mut state);
+        let finished = push_pull_states(&mut board, seq, &mut state);
 
-        for i in 0..DRIVERS {
-            let now = Instant::now();
+        emit_state(&mut board, seq, finished | stopped).await;
+    }
+}
 
-            if (stops >> i) & 0b1 == 1 && last_reversal[i] < now + Duration::from_millis(500) {
-                defmt::info!("Endstop triggered");
-                seq[i].trig_endstop();
-                board.clear_steps(i);
+#[cfg(all(feature = "stallguard"))]
+fn endstop_check<B, Q, const N: usize>(
+    board: &mut B,
+    seq: &mut [Q; N],
+    state: &mut RunState<N>,
+) -> u16
+where
+    B: StepStickBoard,
+    Q: SensingWindowDressingSequencer,
+{
+    let mut flagged = 0u16;
+    let stops = STOPS.swap(0, Ordering::AcqRel);
 
-                let _ = board
-                    .get_host_rpc()
-                    .write(&OutgoingRpcPacket::Position {
-                        channel: i as u8,
-                        current: *seq[i].get_current_state(),
-                        desired: *seq[i].get_desired_state(),
-                    })
-                    .await;
+    for i in 0..DRIVERS {
+        if (stops >> i) & 0b1 == 1 {
+            debug!(
+                "Endstop trigger received for channel {} at {:?}",
+                i,
+                seq[i].get_current_state()
+            );
+            seq[i].trig_endstop();
+            board.clear_steps(i);
+            debug!("Channel {} is now at {:?}", i, seq[i].get_current_state());
 
-                // Pull the hold instruction into the buffer
-                next_buf[i] = seq[i].get_next_instruction();
-            }
+            state.next_buf[i] = seq[i].get_next_instruction();
 
-            if board.is_ready_for_steps(i) {
-                if let Some(instr) = mem::replace(&mut next_buf[i], None) {
-                    board.set_enabled(i, true);
-                    if instr.quality == cur_direction[i] {
-                        board.add_steps(i, instr.quantity);
-                    } else if board.is_stopped(i) && next_resume[i] < now {
-                        cur_direction[i] = instr.quality;
-                        last_reversal[i] = now;
+            flagged |= 1 << i;
+        }
+    }
 
-                        let _ = board
-                            .get_host_rpc()
-                            .write(&OutgoingRpcPacket::Position {
-                                channel: i as u8,
-                                current: *seq[i].get_current_state(),
-                                desired: *seq[i].get_desired_state(),
-                            })
-                            .await;
+    flagged
+}
 
-                        match instr.quality {
-                            Direction::Hold => {
-                                let offset = Duration::from_micros(
-                                    (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
-                                );
-                                next_resume[i] = now + offset;
+fn push_pull_states<const N: usize, B, Q>(
+    board: &mut B,
+    seq: &mut [Q; N],
+    state: &mut RunState<N>,
+) -> u16
+where
+    B: StepStickBoard,
+    Q: WindowDressingSequencer,
+{
+    let mut stopped = 0u16;
 
-                                // Stop further commands on the PIO SMs & move on to the next channel
-                                // Also stops the instruction being placed back into the buffer (as this block handles it)
-                                continue;
-                            }
-                            Direction::Retract => board.set_direction(
-                                i,
-                                (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 1,
-                            ),
-                            Direction::Extend => board.set_direction(
-                                i,
-                                (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0,
-                            ),
+    let now = Instant::now();
+    for i in 0..DRIVERS {
+        if board.is_ready_for_steps(i) {
+            if let Some(instr) = mem::replace(&mut state.next_buf[i], None) {
+                board.set_enabled(i, true);
+                if instr.quality == state.cur_direction[i] {
+                    board.add_steps(i, instr.quantity);
+                } else if board.is_stopped(i) && state.next_resume[i] < now {
+                    state.cur_direction[i] = instr.quality;
+
+                    stopped |= 1 << i;
+
+                    match instr.quality {
+                        Direction::Hold => {
+                            let offset = Duration::from_micros(
+                                (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
+                            );
+                            state.next_resume[i] = now + offset;
+
+                            // Stop further commands on the PIO SMs & move on to the next channel
+                            // Also stops the instruction being placed back into the buffer (as this block handles it)
+                            continue;
                         }
-                        board.add_steps(i, instr.quantity);
-                    } else {
-                        let _ = mem::replace(&mut next_buf[i], Some(instr));
+                        Direction::Retract => board
+                            .set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 1),
+                        Direction::Extend => board
+                            .set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0),
                     }
-                } else if let Some(next) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
-                    next_buf[i] = Some(next);
-                } else if board.is_stopped(i) {
-                    board.set_enabled(i, false);
+                    board.add_steps(i, instr.quantity);
+                } else {
+                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
                 }
+            } else if let Some(next) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
+                state.next_buf[i] = Some(next);
+            } else if board.is_stopped(i) {
+                board.set_enabled(i, false);
             }
+        }
+    }
+
+    stopped
+}
+
+#[cfg(any(feature = "host-uart", feature = "host-usb"))]
+async fn emit_state<B, Q, const N: usize>(board: &mut B, seq: &[Q; N], channels: u16)
+where
+    B: ControllableBoard,
+    Q: WindowDressingSequencer,
+{
+    for i in 0..DRIVERS {
+        if (channels >> i) & 0b1 == 1 {
+            let _ = board
+                .get_host_rpc()
+                .write(&OutgoingRpcPacket::Position {
+                    channel: i as u8,
+                    current: *seq[i].get_current_state(),
+                    desired: *seq[i].get_desired_state(),
+                })
+                .await;
         }
     }
 }
