@@ -94,12 +94,6 @@ where
     let mut state = RunState::<DRIVERS>::default();
 
     loop {
-        let _ = board
-            .get_host_rpc()
-            .write(&OutgoingRpcPacket::Ready {})
-            .await;
-        debug!("Flagged ready state.");
-
         let incoming = board.get_host_rpc().peek().await.unwrap_or(None);
 
         match incoming {
@@ -111,9 +105,15 @@ where
                 debug!("Received non-setup command. Draining...");
                 let _ = board.get_host_rpc().read().await;
                 Timer::after_millis(50).await; // Drain should be more eager than the less-intensive waiting for a new command
+                continue;
             }
             None => {
-                Timer::after_millis(250).await;
+                let _ = board
+                    .get_host_rpc()
+                    .write(&OutgoingRpcPacket::Ready {})
+                    .await;
+                debug!("Flagged ready state.");
+                Timer::after_secs(1).await;
             }
         }
     }
