@@ -72,10 +72,6 @@ where
     B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
 {
     info!("Initializing controller...");
-    let _ = board
-        .get_host_rpc()
-        .write(&OutgoingRpcPacket::Ready {})
-        .await;
 
     let seq = SEQUENCERS.init([
         HaltingSequencer::new_roller(100_000),
@@ -97,10 +93,32 @@ where
     ]);
     let mut state = RunState::<DRIVERS>::default();
 
-    info!("Ready to accept calls");
     loop {
-        Timer::after_millis(250).await;
+        let _ = board
+            .get_host_rpc()
+            .write(&OutgoingRpcPacket::Ready {})
+            .await;
+        debug!("Flagged ready state.");
 
+        let incoming = board.get_host_rpc().peek().await.unwrap_or(None);
+
+        match incoming {
+            Some(IncomingRpcPacket::Setup { .. }) => {
+                debug!("Received setup command. Continuing...");
+                break;
+            }
+            Some(_) => {
+                debug!("Received non-setup command. Draining...");
+                let _ = board.get_host_rpc().read().await;
+                Timer::after_millis(50).await; // Drain should be more eager than the less-intensive waiting for a new command
+            }
+            None => {
+                Timer::after_millis(250).await;
+            }
+        }
+    }
+
+    loop {
         match board.get_host_rpc().read().await {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
@@ -183,6 +201,8 @@ where
         let finished = push_pull_states(&mut board, seq, &mut state);
 
         emit_state(&mut board, seq, finished | stopped).await;
+
+        Timer::after_millis(250).await;
     }
 }
 

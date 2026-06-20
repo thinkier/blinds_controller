@@ -29,10 +29,9 @@ bind_interrupts!(struct Irqs {
 });
 
 static_buffer!(DRIVER_BUFFER_TX: 32);
-static_buffer!(DRIVER_BUFFER_RX: 32);
-// Give a few extra bytes for head / tail due to number of overruns
-static_buffer!(HOST_BUFFER_TX: 260);
-static_buffer!(HOST_BUFFER_RX: 260);
+static_buffer!(DRIVER_BUFFER_RX: 128);
+static_buffer!(HOST_BUFFER_TX: 256);
+static_buffer!(HOST_BUFFER_RX: 1024);
 
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();
@@ -45,7 +44,7 @@ pub trait BoardInitialize {
 #[cfg(feature = "host-uart")]
 pub type HD = SerialRpcHandle<256, BufferedUart>;
 #[cfg(feature = "host-usb")]
-pub type HD = UsbRpcHandle<'static, 256, Driver<'static, USB>>;
+pub type HD = UsbRpcHandle<'static, 1024, Driver<'static, USB>>;
 
 impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
     fn init(spawner: Spawner) -> Self {

@@ -14,11 +14,12 @@ pub use usb_cdc_acm::*;
 pub trait AsyncRpc {
     type Error: defmt::Format;
 
+    async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error>;
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum IncomingRpcPacket {

@@ -5,6 +5,7 @@ use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
 #[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
+    read_buf: Option<IncomingRpcPacket>,
     pub serial: IO,
 }
 
@@ -45,7 +46,10 @@ where
 {
     #[allow(unused)]
     pub fn new(serial: IO) -> Self {
-        Self { serial }
+        Self {
+            read_buf: None,
+            serial,
+        }
     }
 }
 impl<const N: usize, IO> AsyncRpc for SerialRpcHandle<N, IO>
@@ -55,7 +59,21 @@ where
 {
     type Error = SerialRpcError<IO::Error>;
 
+    async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+        if self.read_buf.is_some() {
+            return Ok(self.read_buf.clone());
+        }
+
+        self.read_buf = self.read().await?;
+
+        Ok(self.read_buf.clone())
+    }
+
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+        if self.read_buf.is_some() {
+            return Ok(self.read_buf.take());
+        }
+
         if !self.serial.read_ready()? {
             return Ok(None);
         }
@@ -79,7 +97,13 @@ where
                 b'\n' => {
                     return serde_json_core::from_slice(&mut incoming_packet_buf[0..=i])
                         .map(|(item, _)| Some(item))
-                        .map_err(|e| SerialRpcError::ParseError(e));
+                        .map_err(|e| {
+                            debug!(
+                                "Incoming packet resulted in parse error: buf={:02x}",
+                                incoming_packet_buf[0..=i]
+                            );
+                            SerialRpcError::ParseError(e)
+                        });
                 }
                 _ => i += 1,
             }

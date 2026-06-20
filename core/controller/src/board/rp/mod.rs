@@ -47,12 +47,12 @@ pub struct Board<'a, const N: usize, D, H> {
 }
 
 #[cfg(feature = "host-uart")]
-impl<'a, const N: usize, D, IO> ControllableBoard for Board<'a, N, D, SerialRpcHandle<256, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard for Board<'a, N, D, SerialRpcHandle<BS, IO>>
 where
     IO: Read + ReadReady + Write,
     <IO as ErrorType>::Error: defmt::Format,
 {
-    type Rpc = SerialRpcHandle<256, IO>;
+    type Rpc = SerialRpcHandle<BS, IO>;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
@@ -63,11 +63,11 @@ where
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, D, IO> ControllableBoard for Board<'a, N, D, UsbRpcHandle<'a, 256, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>>
 where
     IO: Driver<'a>,
 {
-    type Rpc = UsbRpcHandle<'a, 256, IO>;
+    type Rpc = UsbRpcHandle<'a, BS, IO>;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
