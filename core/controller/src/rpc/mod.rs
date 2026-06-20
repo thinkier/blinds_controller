@@ -46,6 +46,9 @@ pub enum IncomingRpcPacket {
     GetStallGuardResult {
         channel: u8,
     },
+    // This is not normally available to a generic Serial RPC caller,
+    // it could be triggered by a side-channel flag like
+    // - Lowering the baud rate below 1200Hz per Arduino / pico-sdk convention
     #[serde(skip)]
     Bootloader
 }

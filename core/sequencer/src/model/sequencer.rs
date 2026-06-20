@@ -56,3 +56,10 @@ pub struct WindowDressingState {
     pub position: u8,
     pub tilt: i8,
 }
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for WindowDressingState {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "{{ position: {}, tilt: {} }}", self.position, self.tilt)
+    }
+}

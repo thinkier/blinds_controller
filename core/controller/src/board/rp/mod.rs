@@ -6,6 +6,7 @@ use crate::rpc::SerialRpcHandle;
 use crate::rpc::UsbRpcHandle;
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
+use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
 use embassy_rp::peripherals::PIO0;
@@ -196,9 +197,12 @@ pub fn bind_endstops<const N: usize>(spawner: Spawner, inputs: [Input<'static>; 
 #[embassy_executor::task(pool_size = DRIVERS)]
 async fn stop_detector(i: usize, mut input: Input<'static>) {
     loop {
+        debug!("Waiting for endstop event on {}", i);
         input.wait_for_high().await;
+        debug!("Endstop HIGH detected for channel {}", i);
         STOPS.bit_set(i as u32, Ordering::Release);
-        Timer::after_secs(1).await; // Dead Time Insertion
         input.wait_for_low().await;
+        debug!("Endstop LOW detected for channel {}", i);
+        Timer::after_secs(1).await; // Dead Time Insertion
     }
 }

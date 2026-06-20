@@ -112,6 +112,8 @@ where
                         board.set_sg_threshold(channel, sgthrs).await;
                     }
 
+                    info!("Driver set up on channel {}", channel);
+
                     let _ = board
                         .get_host_rpc()
                         .write(&OutgoingRpcPacket::Position {

@@ -3,6 +3,11 @@ name = "sequencer"
 version = "0.3.0"
 edition = "2021"
 
+[features]
+default = ["defmt"]
+defmt = ["dep:defmt"]
+
 [dependencies]
 heapless = ">=0.9"
 serde = { version = "1", default-features = false, features = ["derive"] }
+defmt = {version = "1", optional = true}

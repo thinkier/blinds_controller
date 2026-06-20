@@ -85,7 +85,7 @@ where
             }
         }
 
-        error!("Incoming buffer saturated, discarding serial input until receiving newline...");
+        error!("Incoming buffer saturated, discarding serial input until seeing newline...");
         let mut drain = [0u8];
         loop {
             self.serial.read_exact(&mut drain)?;
@@ -97,7 +97,7 @@ where
         }
         info!("Recovered from buffer saturation, exiting back to caller...");
 
-        return Ok(None);
+        Ok(None)
     }
 
     async fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
