@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["thinkier"]
 
 [features]
-default = []
+default = ["driver-qty-4"]
 
 # Architecture configuration block
 thumbv6m = ["dep:critical-section", "portable-atomic/critical-section"]
