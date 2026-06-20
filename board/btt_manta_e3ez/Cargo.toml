@@ -10,10 +10,10 @@ panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 static_cell = "2"
 
 cortex-m-rt = "0.7"
-embassy-executor = "0.9.1"
-embassy-stm32 = { version = "0.4.0", features = ["stm32g0b1re"] }
+embassy-executor = "0.10.0"
+embassy-stm32 = { version = "0.6.0", features = ["stm32g0b1re"] }
 
-embassy-usb = "0.5.1"
+embassy-usb = "0.6.0"
 
 [dependencies.controller]
 path = "../../core/controller"
