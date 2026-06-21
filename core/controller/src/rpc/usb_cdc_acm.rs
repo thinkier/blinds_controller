@@ -108,9 +108,13 @@ where
             return Ok(Some(IncomingRpcPacket::Bootloader));
         }
 
-        while self.packet_buf[self.packet_cursor-1] != 0x00 {
-            let len = self.stream.class.read_packet(&mut self.packet_buf[self.packet_cursor..]).await
-            .map_err(|_|UsbRpcError::IoError)?;
+        while self.packet_buf[self.packet_cursor - 1] != 0x00 {
+            let len = self
+                .stream
+                .class
+                .read_packet(&mut self.packet_buf[self.packet_cursor..])
+                .await
+                .map_err(|_| UsbRpcError::IoError)?;
 
             self.packet_cursor += len;
         }
@@ -131,11 +135,14 @@ where
         let len = len + 1;
 
         let size = self.stream.class.max_packet_size() as usize;
-        for range in 0..=(len/size) {
+        for range in 0..=(len / size) {
             let window = range * size..(range * size + size);
 
-            self.stream.class.write_packet(&self.packet_buf[window]).await
-                .map_err(|_|UsbRpcError::IoError)?;
+            self.stream
+                .class
+                .write_packet(&self.packet_buf[window])
+                .await
+                .map_err(|_| UsbRpcError::IoError)?;
         }
 
         Ok(())

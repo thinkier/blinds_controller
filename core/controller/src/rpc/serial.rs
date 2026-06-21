@@ -1,8 +1,11 @@
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
-use defmt::*;
+use defmt::{debug, error, info, write, Format, Formatter};
 use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
+/// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io`]
+///
+/// [`N`] should be the size of the buffer allocated in the stack to process a single message
 #[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
     read_buf: Option<IncomingRpcPacket>,
@@ -32,10 +35,10 @@ impl<E: embedded_io::Error> From<ReadExactError<E>> for SerialRpcError<E> {
 impl<E: embedded_io::Error + Format> Format for SerialRpcError<E> {
     fn format(&self, fmt: Formatter) {
         match self {
-            SerialRpcError::IoError(e) => defmt::write!(fmt, "IoError({:?})", e),
-            SerialRpcError::IoReadExactError(e) => defmt::write!(fmt, "IoReadExactError({:?})", e),
-            SerialRpcError::ParseError(e) => defmt::write!(fmt, "ParseError({:?})", e),
-            SerialRpcError::EncodeError(e) => defmt::write!(fmt, "EncodeError({:?})", e),
+            SerialRpcError::IoError(e) => write!(fmt, "IoError({:?})", e),
+            SerialRpcError::IoReadExactError(e) => write!(fmt, "IoReadExactError({:?})", e),
+            SerialRpcError::ParseError(e) => write!(fmt, "ParseError({:?})", e),
+            SerialRpcError::EncodeError(e) => write!(fmt, "EncodeError({:?})", e),
         }
     }
 }

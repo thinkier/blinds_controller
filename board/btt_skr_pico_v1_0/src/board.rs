@@ -42,9 +42,9 @@ pub trait BoardInitialize {
 }
 
 #[cfg(feature = "host-uart")]
-pub type HD = SerialRpcHandle<256, BufferedUart>;
+pub type HD = SerialRpcHandle<128, BufferedUart>;
 #[cfg(feature = "host-usb")]
-pub type HD = UsbRpcHandle<'static, 1024, Driver<'static, USB>>;
+pub type HD = UsbRpcHandle<'static, 128, Driver<'static, USB>>;
 
 impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
     fn init(spawner: Spawner) -> Self {
