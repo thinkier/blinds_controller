@@ -74,6 +74,7 @@ where
 
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
         if self.read_buf.is_some() {
+            debug!("Returning cached results immediately");
             return Ok(self.read_buf.take());
         }
 
@@ -128,14 +129,28 @@ where
     }
 
     async fn write(&mut self, resp: &OutgoingRpcPacket) -> Result<(), Self::Error> {
-        let mut outgoing_packet_buf = [0u8; N];
+        let mut outgoing_packet_buf = [b'\n'; N];
 
         let packet = serde_json_core::to_slice(resp, &mut outgoing_packet_buf)
             .map_err(|e| SerialRpcError::EncodeError(e))?;
-        // LF terminates packet
-        outgoing_packet_buf[packet] = b'\n';
 
         self.serial.write_all(&outgoing_packet_buf[0..=packet])?;
+
+        Ok(())
+    }
+
+    /// Recommended that for each channel this controller supports, at least 128 bytes is allocated in the stack buffer
+    async fn write_bulk(&mut self, packets: impl Iterator<Item = &OutgoingRpcPacket>) -> Result<(), Self::Error> {
+        let mut outgoing_packet_buf = [b'\n'; N];
+
+        let mut i = 0;
+        for packet in packets {
+            let j = serde_json_core::to_slice(packet, &mut outgoing_packet_buf[i..])
+                .map_err(|e| SerialRpcError::EncodeError(e))?;
+
+            i += j + 1;
+        }
+        self.serial.write_all(&outgoing_packet_buf[0..i])?;
 
         Ok(())
     }

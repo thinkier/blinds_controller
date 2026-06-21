@@ -30,7 +30,7 @@ bind_interrupts!(struct Irqs {
 
 static_buffer!(DRIVER_BUFFER_TX: 32);
 static_buffer!(DRIVER_BUFFER_RX: 128);
-static_buffer!(HOST_BUFFER_TX: 256);
+static_buffer!(HOST_BUFFER_TX: 1024);
 static_buffer!(HOST_BUFFER_RX: 1024);
 
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
@@ -42,9 +42,9 @@ pub trait BoardInitialize {
 }
 
 #[cfg(feature = "host-uart")]
-pub type HD = SerialRpcHandle<128, BufferedUart>;
+pub type HD = SerialRpcHandle<512, BufferedUart>;
 #[cfg(feature = "host-usb")]
-pub type HD = UsbRpcHandle<'static, 128, Driver<'static, USB>>;
+pub type HD = UsbRpcHandle<'static, 512, Driver<'static, USB>>;
 
 impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
     fn init(spawner: Spawner) -> Self {

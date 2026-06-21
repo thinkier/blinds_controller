@@ -17,6 +17,17 @@ pub trait AsyncRpc {
     async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error>;
+    /// The default implementation is to call write repeatedly,
+    /// but implementers can choose to optimize the calls
+    async fn write_bulk(
+        &mut self,
+        packets: impl Iterator<Item = &OutgoingRpcPacket>,
+    ) -> Result<(), Self::Error> {
+        for packet in packets {
+            self.write(packet).await?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -63,6 +74,7 @@ pub enum OutgoingRpcPacket {
     Ready {},
     Position {
         channel: u8,
+        #[serde(skip_serializing_if = "is_false")]
         notify: bool,
         current: WindowDressingState,
         desired: WindowDressingState,
@@ -72,4 +84,8 @@ pub enum OutgoingRpcPacket {
         channel: u8,
         sg_result: u8,
     },
+}
+
+fn is_false(b: &bool) -> bool {
+    !b
 }

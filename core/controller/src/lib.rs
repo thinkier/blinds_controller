@@ -14,6 +14,7 @@ use defmt::*;
 use embassy_executor::Spawner;
 #[allow(unused)]
 use embassy_time::{Duration, Instant, Timer};
+use heapless::Vec;
 use portable_atomic::AtomicU16;
 #[cfg(feature = "stallguard")]
 use sequencer::SensingWindowDressingSequencer;
@@ -104,96 +105,93 @@ where
     }
 
     loop {
-        match board.get_host_rpc().read().await {
-            Ok(Some(packet)) => match packet {
-                IncomingRpcPacket::Home { channel } => {
-                    if let Some(ref mut seq) = seqs[channel as usize] {
-                        seq.home_fully_opened();
-                    } else {
-                        emit_absence(&mut board, channel).await;
-                    }
-                }
-                IncomingRpcPacket::Setup {
-                    channel,
-                    init,
-                    full_cycle_steps,
-                    reverse,
-                    full_tilt_steps,
-                    sgthrs,
-                } => {
-                    let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
+        let mut request_pos = 0u16;
 
-                    if let Some(init) = init {
-                        seq.load_state(&init);
-                    } else if let Some(ref old_seq) = seqs[channel as usize] {
-                        seq.load_state(old_seq.get_current_state());
+        // Limit the consumption of commands so it's not in this loop without checking the PIO,
+        // But also make it a bit greedy
+        for _ in 0..N {
+            match board.get_host_rpc().read().await {
+                Ok(Some(packet)) => match packet {
+                    IncomingRpcPacket::Home { channel } => {
+                        if let Some(ref mut seq) = seqs[channel as usize] {
+                            seq.home_fully_opened();
+                        } else {
+                            emit_absence(&mut board, channel).await;
+                        }
                     }
+                    IncomingRpcPacket::Setup {
+                        channel,
+                        init,
+                        full_cycle_steps,
+                        reverse,
+                        full_tilt_steps,
+                        sgthrs,
+                    } => {
+                        let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
 
-                    if reverse.unwrap_or(false) {
-                        REVERSALS.bit_set(channel as u32, Ordering::Relaxed);
-                    } else {
-                        REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
-                    }
+                        if let Some(init) = init {
+                            seq.load_state(&init);
+                        } else if let Some(ref old_seq) = seqs[channel as usize] {
+                            seq.load_state(old_seq.get_current_state());
+                        }
 
-                    if let Some(sgthrs) = sgthrs {
-                        board.set_sg_threshold(channel, sgthrs).await;
-                    }
+                        if reverse.unwrap_or(false) {
+                            REVERSALS.bit_set(channel as u32, Ordering::Relaxed);
+                        } else {
+                            REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
+                        }
 
-                    seqs[channel as usize] = Some(seq);
-                    info!("Driver set up on channel {}", channel);
-                }
-                IncomingRpcPacket::Set {
-                    channel,
-                    position,
-                    tilt,
-                } => {
-                    if let Some(ref mut seq) = seqs[channel as usize] {
-                        position.map(|p| seq.set_position(p));
-                        tilt.map(|t| seq.set_tilt(t));
-                    } else {
-                        emit_absence(&mut board, channel).await;
+                        if let Some(sgthrs) = sgthrs {
+                            board.set_sg_threshold(channel, sgthrs).await;
+                        }
+
+                        seqs[channel as usize] = Some(seq);
+                        info!("Driver set up on channel {}", channel);
                     }
-                }
-                IncomingRpcPacket::Get { channel } => {
-                    if let Some(ref mut seq) = seqs[channel as usize] {
-                        let out = OutgoingRpcPacket::Position {
-                            channel,
-                            notify: false,
-                            current: *seq.get_current_state(),
-                            desired: *seq.get_desired_state(),
-                        };
+                    IncomingRpcPacket::Set {
+                        channel,
+                        position,
+                        tilt,
+                    } => {
+                        if let Some(ref mut seq) = seqs[channel as usize] {
+                            position.map(|p| seq.set_position(p));
+                            tilt.map(|t| seq.set_tilt(t));
+                        } else {
+                            emit_absence(&mut board, channel).await;
+                        }
+                    }
+                    IncomingRpcPacket::Get { channel } => {
+                        request_pos |= 0b1 << channel;
+                    }
+                    IncomingRpcPacket::GetStallGuardResult { channel } => {
+                        let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
+                        let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
                         if let Err(e) = board.get_host_rpc().write(&out).await {
-                            error!("Failed to write Position: {:?}", e);
+                            error!("Failed to write StallGuardResult: {:?}", e);
                         }
-                    } else {
-                        emit_absence(&mut board, channel).await;
-                    }
-                }
-                IncomingRpcPacket::GetStallGuardResult { channel } => {
-                    let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
-                    let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
-                    if let Err(e) = board.get_host_rpc().write(&out).await {
-                        error!("Failed to write StallGuardResult: {:?}", e);
+                        break; // This is a heavy command, yield after running this
                     }
+                    IncomingRpcPacket::Bootloader => {
+                        board.enter_bootloader();
+                    }
+                },
+                Ok(None) => {
+                    break;
                 }
-                IncomingRpcPacket::Bootloader => {
-                    board.enter_bootloader();
+                Err(e) => {
+                    error!("Failed to read from host: {:?}", e);
                 }
-            },
-            Ok(None) => {
-                Timer::after_millis(10).await;
-            }
-            Err(e) => {
-                error!("Failed to read from host serial: {:?}", e);
             }
         }
 
         let stopped = bulk_endstop_check(&mut board, seqs, &mut state);
         let finished = bulk_push_pull_state(&mut board, seqs, &mut state);
 
-        bulk_emit_state(&mut board, seqs, finished | stopped).await;
+        // Emit state due to interruption or completion
+        bulk_emit_state(&mut board, seqs, finished | stopped, true).await;
+        bulk_emit_state(&mut board, seqs, request_pos & !(finished | stopped), false).await;
 
         if option_env!("LOG_SG_RESULT").is_some() {
             let _ = print_sg_result(&mut board).await;
@@ -330,13 +328,18 @@ where
     stopped
 }
 
-/// Emit state due to interruption or completion
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
-async fn bulk_emit_state<B, Q, const N: usize>(board: &mut B, seqs: &[Option<Q>; N], channels: u16)
-where
+async fn bulk_emit_state<B, Q, const N: usize>(
+    board: &mut B,
+    seqs: &[Option<Q>; N],
+    channels: u16,
+    notify: bool,
+) where
     B: ControllableBoard,
     Q: WindowDressingSequencer,
 {
+    let mut packets = Vec::<_, N>::new();
+
     for i in 0..DRIVERS {
         if (channels >> i) & 0b1 == 1 {
             let seq = if let Some(ref seq) = seqs[i] {
@@ -345,16 +348,21 @@ where
                 continue;
             };
 
-            let _ = board
-                .get_host_rpc()
-                .write(&OutgoingRpcPacket::Position {
-                    channel: i as u8,
-                    notify: true,
-                    current: *seq.get_current_state(),
-                    desired: *seq.get_desired_state(),
-                })
-                .await;
+            let _ = packets.push(OutgoingRpcPacket::Position {
+                channel: i as u8,
+                notify,
+                current: *seq.get_current_state(),
+                desired: *seq.get_desired_state(),
+            });
         }
+    }
+
+    if let Err(e) = board.get_host_rpc().write_bulk(packets.iter()).await {
+        error!("Failed to bulk write packet: {}", e);
+
+        let _ = AsyncRpc::write_bulk(board.get_host_rpc(), packets.iter())
+            .await
+            .map_err(|e| error!("Failed to individually bulk write packet: {}", e));
     }
 }
 
