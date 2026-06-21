@@ -4,43 +4,38 @@ pub mod board;
 pub mod rpc;
 
 use crate::board::*;
+#[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use core::mem;
 use core::sync::atomic::Ordering;
+#[allow(unused)]
 use defmt::*;
+#[allow(unused)]
 use embassy_executor::Spawner;
+#[allow(unused)]
 use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::AtomicU16;
-use sequencer::{
-    Direction, HaltingSequencer, SensingWindowDressingSequencer, WindowDressingInstruction,
-    WindowDressingSequencer,
-};
+#[cfg(feature = "stallguard")]
+use sequencer::SensingWindowDressingSequencer;
+use sequencer::{Direction, HaltingSequencer, WindowDressingInstruction, WindowDressingSequencer};
 use static_cell::StaticCell;
-
-static REVERSALS: AtomicU16 = AtomicU16::new(0);
-static STOPS: AtomicU16 = AtomicU16::new(0);
-static SEQUENCERS: StaticCell<[HaltingSequencer<1024>; DRIVERS]> = StaticCell::new();
 
 pub const DRIVERS: usize = get_driver_count();
 
+static REVERSALS: AtomicU16 = AtomicU16::new(0);
+#[cfg(feature = "stallguard")]
+static STOPS: AtomicU16 = AtomicU16::new(0);
+#[allow(unused)]
+#[cfg(feature = "stallguard")]
+static SEQUENCERS: StaticCell<[Option<HaltingSequencer<1024>>; DRIVERS]> = StaticCell::new();
+
 const fn get_driver_count() -> usize {
-    if cfg!(feature = "driver-qty-4") {
-        4
-    } else if cfg!(feature = "driver-qty-5") {
-        5
-    } else if cfg!(feature = "driver-qty-8") {
-        8
-    } else if cfg!(feature = "driver-qty-10") {
-        10
-    } else {
-        #[cfg(not(any(
-            feature = "driver-qty-4",
-            feature = "driver-qty-5",
-            feature = "driver-qty-8",
-            feature = "driver-qty-10"
-        )))]
-        compile_error!("One driver-qty-{n} flag MUST be defined!");
-        0 // Unreachable
+    cfg_select! {
+        feature = "driver-qty-4" => 4,
+        feature = "driver-qty-5" => 5,
+        feature = "driver-qty-8" => 8,
+        feature = "driver-qty-10" => 10,
+        _ => compile_error!("One driver-qty-{n} flag MUST be defined!")
     }
 }
 
@@ -73,24 +68,14 @@ where
 {
     info!("Initializing controller...");
 
-    let seq = SEQUENCERS.init([
-        HaltingSequencer::new_roller(100_000),
-        HaltingSequencer::new_roller(100_000),
-        HaltingSequencer::new_roller(100_000),
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-5"))]
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-8"))]
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-8"))]
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-8"))]
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-10"))]
-        HaltingSequencer::new_roller(100_000),
-        #[cfg(any(feature = "driver-qty-ge-10"))]
-        HaltingSequencer::new_roller(100_000),
-    ]);
+    let seqs = SEQUENCERS.init(
+        [const { None }; cfg_select! {
+            feature = "driver-qty-4" => 4,
+            feature = "driver-qty-5" => 5,
+            feature = "driver-qty-8" => 8,
+            feature = "driver-qty-10" => 10,
+        }],
+    );
     let mut state = RunState::<DRIVERS>::default();
 
     loop {
@@ -122,7 +107,11 @@ where
         match board.get_host_rpc().read().await {
             Ok(Some(packet)) => match packet {
                 IncomingRpcPacket::Home { channel } => {
-                    seq[channel as usize].home_fully_opened();
+                    if let Some(ref mut seq) = seqs[channel as usize] {
+                        seq.home_fully_opened();
+                    } else {
+                        emit_absence(&mut board, channel).await;
+                    }
                 }
                 IncomingRpcPacket::Setup {
                     channel,
@@ -132,10 +121,13 @@ where
                     full_tilt_steps,
                     sgthrs,
                 } => {
-                    seq[channel as usize] =
-                        HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
+                    let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
 
-                    seq[channel as usize].load_state(&init);
+                    if let Some(init) = init {
+                        seq.load_state(&init);
+                    } else if let Some(ref old_seq) = seqs[channel as usize] {
+                        seq.load_state(old_seq.get_current_state());
+                    }
 
                     if reverse.unwrap_or(false) {
                         REVERSALS.bit_set(channel as u32, Ordering::Relaxed);
@@ -147,34 +139,35 @@ where
                         board.set_sg_threshold(channel, sgthrs).await;
                     }
 
+                    seqs[channel as usize] = Some(seq);
                     info!("Driver set up on channel {}", channel);
-
-                    let _ = board
-                        .get_host_rpc()
-                        .write(&OutgoingRpcPacket::Position {
-                            channel,
-                            current: *seq[channel as usize].get_current_state(),
-                            desired: *seq[channel as usize].get_desired_state(),
-                        })
-                        .await;
                 }
                 IncomingRpcPacket::Set {
                     channel,
                     position,
                     tilt,
                 } => {
-                    position.map(|p| seq[channel as usize].set_position(p));
-                    tilt.map(|t| seq[channel as usize].set_tilt(t));
+                    if let Some(ref mut seq) = seqs[channel as usize] {
+                        position.map(|p| seq.set_position(p));
+                        tilt.map(|t| seq.set_tilt(t));
+                    } else {
+                        emit_absence(&mut board, channel).await;
+                    }
                 }
                 IncomingRpcPacket::Get { channel } => {
-                    let out = OutgoingRpcPacket::Position {
-                        channel,
-                        current: *seq[channel as usize].get_current_state(),
-                        desired: *seq[channel as usize].get_desired_state(),
-                    };
+                    if let Some(ref mut seq) = seqs[channel as usize] {
+                        let out = OutgoingRpcPacket::Position {
+                            channel,
+                            notify: false,
+                            current: *seq.get_current_state(),
+                            desired: *seq.get_desired_state(),
+                        };
 
-                    if let Err(e) = board.get_host_rpc().write(&out).await {
-                        error!("Failed to write Position: {:?}", e);
+                        if let Err(e) = board.get_host_rpc().write(&out).await {
+                            error!("Failed to write Position: {:?}", e);
+                        }
+                    } else {
+                        emit_absence(&mut board, channel).await;
                     }
                 }
                 IncomingRpcPacket::GetStallGuardResult { channel } => {
@@ -197,19 +190,47 @@ where
             }
         }
 
-        let stopped = endstop_check(&mut board, seq, &mut state);
-        let finished = push_pull_states(&mut board, seq, &mut state);
+        let stopped = bulk_endstop_check(&mut board, seqs, &mut state);
+        let finished = bulk_push_pull_state(&mut board, seqs, &mut state);
 
-        emit_state(&mut board, seq, finished | stopped).await;
+        bulk_emit_state(&mut board, seqs, finished | stopped).await;
+
+        if option_env!("LOG_SG_RESULT").is_some() {
+            let _ = print_sg_result(&mut board).await;
+        }
 
         Timer::after_millis(250).await;
     }
 }
 
-#[cfg(all(feature = "stallguard"))]
-fn endstop_check<B, Q, const N: usize>(
+#[cfg(feature = "stallguard")]
+async fn print_sg_result<B, S, const N: usize>(board: &mut B)
+where
+    B: StepStickBoard + StallGuard<S, N>,
+{
+    let mut sgresult2 = [None; N];
+
+    // I do incur a bit of performance penalty querying all channels (used or not)
+    // over a single UART and waiting for a response for every single one.
+    // But at least I'm not creating a race condition in async.
+    //
+    // Also, this class doesn't discriminate for the underlying write protocol.
+    // This is actually the worst case assumption.
+    // I know the Manta doesn't have a single shared serial bus, the octopus doesn't even use UART!
+    //
+    // According to my own measurements this function takes 200-300ms.
+    // But I don't think it would be safe to offload to another task within the runtime.
+    for channel in 0..N {
+        sgresult2[channel] = board.get_sg_result(channel as u8).await.map(|x| x / 2);
+    }
+
+    defmt::debug!("SG_RESULT/2 = {}", sgresult2);
+}
+
+#[cfg(feature = "stallguard")]
+fn bulk_endstop_check<B, Q, const N: usize>(
     board: &mut B,
-    seq: &mut [Q; N],
+    seqs: &mut [Option<Q>; N],
     state: &mut RunState<N>,
 ) -> u16
 where
@@ -221,16 +242,22 @@ where
 
     for i in 0..DRIVERS {
         if (stops >> i) & 0b1 == 1 {
+            let seq = if let Some(ref mut seq) = seqs[i] {
+                seq
+            } else {
+                continue;
+            };
+
             debug!(
                 "Endstop trigger received for channel {} at {:?}",
                 i,
-                seq[i].get_current_state()
+                seq.get_current_state()
             );
-            seq[i].trig_endstop();
+            seq.trig_endstop();
             board.clear_steps(i);
-            debug!("Channel {} is now at {:?}", i, seq[i].get_current_state());
+            debug!("Channel {} is now at {:?}", i, seq.get_current_state());
 
-            state.next_buf[i] = seq[i].get_next_instruction();
+            state.next_buf[i] = seq.get_next_instruction();
 
             flagged |= 1 << i;
         }
@@ -239,9 +266,9 @@ where
     flagged
 }
 
-fn push_pull_states<const N: usize, B, Q>(
+fn bulk_push_pull_state<const N: usize, B, Q>(
     board: &mut B,
-    seq: &mut [Q; N],
+    seqs: &mut [Option<Q>; N],
     state: &mut RunState<N>,
 ) -> u16
 where
@@ -252,63 +279,92 @@ where
 
     let now = Instant::now();
     for i in 0..DRIVERS {
-        if board.is_ready_for_steps(i) {
-            if let Some(instr) = mem::replace(&mut state.next_buf[i], None) {
-                board.set_enabled(i, true);
-                if instr.quality == state.cur_direction[i] {
-                    board.add_steps(i, instr.quantity);
-                } else if board.is_stopped(i) && state.next_resume[i] < now {
-                    state.cur_direction[i] = instr.quality;
+        let seq = if let Some(ref mut seq) = seqs[i] {
+            seq
+        } else {
+            continue;
+        };
 
-                    stopped |= 1 << i;
+        if !board.is_ready_for_steps(i) {
+            continue;
+        }
 
-                    match instr.quality {
-                        Direction::Hold => {
-                            let offset = Duration::from_micros(
-                                (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
-                            );
-                            state.next_resume[i] = now + offset;
+        if let Some(instr) = mem::replace(&mut state.next_buf[i], None) {
+            board.set_enabled(i, true);
+            if instr.quality == state.cur_direction[i] {
+                board.add_steps(i, instr.quantity);
+            } else if board.is_stopped(i) && state.next_resume[i] < now {
+                state.cur_direction[i] = instr.quality;
 
-                            // Stop further commands on the PIO SMs & move on to the next channel
-                            // Also stops the instruction being placed back into the buffer (as this block handles it)
-                            continue;
-                        }
-                        Direction::Retract => board
-                            .set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 1),
-                        Direction::Extend => board
-                            .set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0),
+                stopped |= 1 << i;
+
+                match instr.quality {
+                    Direction::Hold => {
+                        let offset = Duration::from_micros(
+                            (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
+                        );
+                        state.next_resume[i] = now + offset;
+
+                        // Stop further commands on the PIO SMs & move on to the next channel
+                        // Also stops the instruction being placed back into the buffer (as this block handles it)
+                        continue;
                     }
-                    board.add_steps(i, instr.quantity);
-                } else {
-                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
+                    Direction::Retract => {
+                        board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 1)
+                    }
+                    Direction::Extend => {
+                        board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0)
+                    }
                 }
-            } else if let Some(next) = seq[i].get_next_instruction_grouped(FREQUENCY as u32) {
-                state.next_buf[i] = Some(next);
-            } else if board.is_stopped(i) {
-                board.set_enabled(i, false);
+                board.add_steps(i, instr.quantity);
+            } else {
+                let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             }
+        } else if let Some(next) = seq.get_next_instruction_grouped(FREQUENCY as u32) {
+            state.next_buf[i] = Some(next);
+        } else if board.is_stopped(i) {
+            board.set_enabled(i, false);
         }
     }
 
     stopped
 }
 
+/// Emit state due to interruption or completion
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
-async fn emit_state<B, Q, const N: usize>(board: &mut B, seq: &[Q; N], channels: u16)
+async fn bulk_emit_state<B, Q, const N: usize>(board: &mut B, seqs: &[Option<Q>; N], channels: u16)
 where
     B: ControllableBoard,
     Q: WindowDressingSequencer,
 {
     for i in 0..DRIVERS {
         if (channels >> i) & 0b1 == 1 {
+            let seq = if let Some(ref seq) = seqs[i] {
+                seq
+            } else {
+                continue;
+            };
+
             let _ = board
                 .get_host_rpc()
                 .write(&OutgoingRpcPacket::Position {
                     channel: i as u8,
-                    current: *seq[i].get_current_state(),
-                    desired: *seq[i].get_desired_state(),
+                    notify: true,
+                    current: *seq.get_current_state(),
+                    desired: *seq.get_desired_state(),
                 })
                 .await;
         }
     }
+}
+
+#[cfg(any(feature = "host-uart", feature = "host-usb"))]
+async fn emit_absence<B>(board: &mut B, channel: u8)
+where
+    B: ControllableBoard,
+{
+    let _ = board
+        .get_host_rpc()
+        .write(&OutgoingRpcPacket::Absent { channel })
+        .await;
 }

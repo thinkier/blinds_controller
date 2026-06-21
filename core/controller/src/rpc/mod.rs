@@ -28,7 +28,7 @@ pub enum IncomingRpcPacket {
     },
     Setup {
         channel: u8,
-        init: WindowDressingState,
+        init: Option<WindowDressingState>,
         full_cycle_steps: u32,
         reverse: Option<bool>,
         full_tilt_steps: Option<u32>,
@@ -51,15 +51,19 @@ pub enum IncomingRpcPacket {
     // it could be triggered by a side-channel flag like
     // - Lowering the baud rate below 1200Hz per Arduino / pico-sdk convention
     #[serde(skip)]
-    Bootloader
+    Bootloader,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutgoingRpcPacket {
+    Absent {
+        channel: u8,
+    },
     Ready {},
     Position {
         channel: u8,
+        notify: bool,
         current: WindowDressingState,
         desired: WindowDressingState,
     },

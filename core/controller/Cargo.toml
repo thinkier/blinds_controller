@@ -28,13 +28,9 @@ host-uart = ["dep:embedded-io"]
 
 # Driver quantity selector
 driver-qty-4 = []
-driver-qty-5 = ["driver-qty-ge-5"]
-driver-qty-8 = ["driver-qty-ge-8"]
-driver-qty-10 = ["driver-qty-ge-10"]
-# Comparators to make it easier to use the flags in code
-driver-qty-ge-5 = []
-driver-qty-ge-8 = ["driver-qty-ge-5"]
-driver-qty-ge-10 = ["driver-qty-ge-8"]
+driver-qty-5 = []
+driver-qty-8 = []
+driver-qty-10 = []
 
 # Driver configuration block
 tmc2209_uart = ["dep:tmc2209", "uart_configurable_driver", "stallguard"]

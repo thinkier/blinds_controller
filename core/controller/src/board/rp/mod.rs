@@ -10,7 +10,7 @@ use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
 use embassy_rp::peripherals::PIO0;
-#[cfg(feature = "driver-qty-ge-5")]
+#[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
 use embassy_time::Timer;
 #[cfg(feature = "host-usb")]
@@ -36,18 +36,19 @@ pub struct Board<'a, const N: usize, D, H> {
     pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
     pub pio0_2: Option<CountedSqrWav<'a, PIO0, 2>>,
     pub pio0_3: Option<CountedSqrWav<'a, PIO0, 3>>,
-    #[cfg(feature = "driver-qty-ge-5")]
+    #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
     pub pio1_0: Option<CountedSqrWav<'a, PIO1, 0>>,
-    #[cfg(feature = "driver-qty-ge-8")]
+    #[cfg(feature = "driver-qty-8")]
     pub pio1_1: Option<CountedSqrWav<'a, PIO1, 1>>,
-    #[cfg(feature = "driver-qty-ge-8")]
+    #[cfg(feature = "driver-qty-8")]
     pub pio1_2: Option<CountedSqrWav<'a, PIO1, 2>>,
-    #[cfg(feature = "driver-qty-ge-8")]
+    #[cfg(feature = "driver-qty-8")]
     pub pio1_3: Option<CountedSqrWav<'a, PIO1, 3>>,
 }
 
 #[cfg(feature = "host-uart")]
-impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard for Board<'a, N, D, SerialRpcHandle<BS, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard
+    for Board<'a, N, D, SerialRpcHandle<BS, IO>>
 where
     IO: Read + ReadReady + Write,
     <IO as ErrorType>::Error: defmt::Format,
@@ -63,7 +64,8 @@ where
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard
+    for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>>
 where
     IO: Driver<'a>,
 {
@@ -100,13 +102,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.stopped()).unwrap_or(true),
             2 => self.pio0_2.as_mut().map(|p| p.stopped()).unwrap_or(true),
             3 => self.pio0_3.as_mut().map(|p| p.stopped()).unwrap_or(true),
-            #[cfg(feature = "driver-qty-ge-5")]
+            #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
             4 => self.pio1_0.as_mut().map(|p| p.stopped()).unwrap_or(true),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             5 => self.pio1_1.as_mut().map(|p| p.stopped()).unwrap_or(true),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             6 => self.pio1_2.as_mut().map(|p| p.stopped()).unwrap_or(true),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             7 => self.pio1_3.as_mut().map(|p| p.stopped()).unwrap_or(true),
             _ => true,
         }
@@ -118,13 +120,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.ready()).unwrap_or(false),
             2 => self.pio0_2.as_mut().map(|p| p.ready()).unwrap_or(false),
             3 => self.pio0_3.as_mut().map(|p| p.ready()).unwrap_or(false),
-            #[cfg(feature = "driver-qty-ge-5")]
+            #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
             4 => self.pio1_0.as_mut().map(|p| p.ready()).unwrap_or(false),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             5 => self.pio1_1.as_mut().map(|p| p.ready()).unwrap_or(false),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             6 => self.pio1_2.as_mut().map(|p| p.ready()).unwrap_or(false),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             7 => self.pio1_3.as_mut().map(|p| p.ready()).unwrap_or(false),
             _ => false,
         }
@@ -140,13 +142,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.try_push(steps)),
             2 => self.pio0_2.as_mut().map(|p| p.try_push(steps)),
             3 => self.pio0_3.as_mut().map(|p| p.try_push(steps)),
-            #[cfg(feature = "driver-qty-ge-5")]
+            #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
             4 => self.pio1_0.as_mut().map(|p| p.try_push(steps)),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             5 => self.pio1_1.as_mut().map(|p| p.try_push(steps)),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             6 => self.pio1_2.as_mut().map(|p| p.try_push(steps)),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             7 => self.pio1_3.as_mut().map(|p| p.try_push(steps)),
             _ => None,
         }
@@ -158,13 +160,13 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
             1 => self.pio0_1.as_mut().map(|p| p.clear()),
             2 => self.pio0_2.as_mut().map(|p| p.clear()),
             3 => self.pio0_3.as_mut().map(|p| p.clear()),
-            #[cfg(feature = "driver-qty-ge-5")]
+            #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
             4 => self.pio1_0.as_mut().map(|p| p.clear()),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             5 => self.pio1_1.as_mut().map(|p| p.clear()),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             6 => self.pio1_2.as_mut().map(|p| p.clear()),
-            #[cfg(feature = "driver-qty-ge-8")]
+            #[cfg(feature = "driver-qty-8")]
             7 => self.pio1_3.as_mut().map(|p| p.clear()),
             _ => None,
         };

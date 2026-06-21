@@ -105,7 +105,6 @@ where
         }
         match await_read::<SG_RESULT, _>(serial) {
             Ok(sg_result) => {
-                defmt::info!("SG_RESULT/2 on addr {}: {}", addr, sg_result.get() / 2);
                 Some((sg_result.get() / 2) as u8)
             }
             Err(_) => {
