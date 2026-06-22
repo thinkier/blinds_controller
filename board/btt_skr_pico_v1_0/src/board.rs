@@ -15,8 +15,10 @@ use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
 use embassy_rp::usb::Driver;
 use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
 use embassy_rp::Peripherals;
+use embassy_rp::watchdog::Watchdog;
 #[cfg(feature = "host-usb")]
 use embassy_usb::UsbDevice;
+use embassy_time::Duration;
 use static_cell::StaticCell;
 
 pub const FREQUENCY: u16 = 1000;
@@ -150,10 +152,16 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
             },
         ];
 
+        let mut wdr = Watchdog::new(p.WATCHDOG.reborrow());
+        #[cfg(test)]
+        wdr.pause_on_debug(true);
+        wdr.start(Duration::from_secs(2));
+
         Self {
             drivers: driver,
             driver_serial,
             host_rpc,
+            wdr,
             pio0_0: Some(pio0_0),
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),

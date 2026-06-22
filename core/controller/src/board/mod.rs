@@ -32,6 +32,10 @@ pub trait ControllableBoard {
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc;
     fn enter_bootloader(&mut self);
+    /// Feed the board's watchdog, should it be implemented.
+    ///
+    /// Implementers of Watchdog should be much more generous than the timer in the run loop.
+    fn watchdog_feed(&mut self) {}
 }
 
 #[cfg(feature = "uart_configurable_driver")]

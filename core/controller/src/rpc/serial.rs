@@ -1,6 +1,6 @@
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
-use defmt::{debug, error, info, write, Format, Formatter};
+use defmt::{debug, error, info, trace, write, Format, Formatter};
 use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
 /// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io`]
@@ -8,6 +8,7 @@ use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 /// [`N`] should be the size of the buffer allocated in the stack to process a single message
 #[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
+    non_yield_ctr: u32,
     read_buf: Option<IncomingRpcPacket>,
     pub serial: IO,
 }
@@ -43,11 +44,11 @@ impl<E: embedded_io_async::Error + Format> Format for SerialRpcError<E> {
     }
 }
 
-impl<const N: usize, IO> SerialRpcHandle<N, IO>
-{
+impl<const N: usize, IO> SerialRpcHandle<N, IO> {
     #[allow(unused)]
     pub fn new(serial: IO) -> Self {
         Self {
+            non_yield_ctr: 0,
             read_buf: None,
             serial,
         }
@@ -78,7 +79,13 @@ where
         }
 
         if !self.serial.read_ready()? {
+            self.non_yield_ctr += 1;
+
+            trace!("Read not ready {}", self.non_yield_ctr);
             return Ok(None);
+        } else {
+            self.non_yield_ctr = 0;
+            trace!("Read ready");
         }
 
         let mut i = 0;
@@ -93,7 +100,9 @@ where
         //
         // It also keeps the memory for the buffer in the stack and not global.
         while i < N {
-            self.serial.read_exact(&mut incoming_packet_buf[i..=i]).await?;
+            self.serial
+                .read_exact(&mut incoming_packet_buf[i..=i])
+                .await?;
 
             match incoming_packet_buf[i] {
                 0x00 => SCB::sys_reset(),
@@ -133,13 +142,18 @@ where
         let packet = serde_json_core::to_slice(resp, &mut outgoing_packet_buf)
             .map_err(|e| SerialRpcError::EncodeError(e))?;
 
-        self.serial.write_all(&outgoing_packet_buf[0..=packet]).await?;
+        self.serial
+            .write_all(&outgoing_packet_buf[0..=packet])
+            .await?;
 
         Ok(())
     }
 
     /// Recommended that for each channel this controller supports, at least 128 bytes is allocated in the stack buffer
-    async fn write_bulk(&mut self, packets: impl Iterator<Item = &OutgoingRpcPacket>) -> Result<(), Self::Error> {
+    async fn write_bulk(
+        &mut self,
+        packets: impl Iterator<Item = &OutgoingRpcPacket>,
+    ) -> Result<(), Self::Error> {
         let mut outgoing_packet_buf = [b'\n'; N];
 
         let mut i = 0;

@@ -9,10 +9,11 @@ use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
-use embassy_rp::peripherals::PIO0;
+use embassy_rp::peripherals::{PIO0};
 #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
-use embassy_time::Timer;
+use embassy_rp::watchdog::Watchdog;
+use embassy_time::{Duration, Timer};
 #[cfg(feature = "host-usb")]
 use embassy_usb::driver::Driver;
 #[cfg(feature = "host-uart")]
@@ -31,6 +32,7 @@ pub struct Board<'a, const N: usize, D, H> {
     pub drivers: [DriverPins<'a>; N],
     pub driver_serial: D,
     pub host_rpc: H,
+    pub wdr: Watchdog,
     // State machines - alternative to an ACT timer on STM controllers
     pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
     pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
@@ -60,6 +62,11 @@ where
     }
     fn enter_bootloader(&mut self) {
         embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+    }
+    fn watchdog_feed(&mut self) {
+        // According to https://arduino-pico.readthedocs.io/en/latest/rp2040.html
+        // The maximum value is 8.3 seconds.  Any higher values will be truncated by the hardware.
+        self.wdr.feed(Duration::from_secs(2))
     }
 }
 

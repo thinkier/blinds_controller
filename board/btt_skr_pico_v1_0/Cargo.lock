@@ -136,6 +136,7 @@ dependencies = [
  "defmt-rtt",
  "embassy-executor",
  "embassy-rp",
+ "embassy-time",
  "embassy-usb",
  "panic-probe",
  "static_cell",

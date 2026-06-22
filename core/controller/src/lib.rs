@@ -14,11 +14,13 @@ use defmt::*;
 use embassy_executor::Spawner;
 #[allow(unused)]
 use embassy_time::{Duration, Instant, Timer};
+#[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use heapless::Vec;
 use portable_atomic::AtomicU16;
 #[cfg(feature = "stallguard")]
-use sequencer::SensingWindowDressingSequencer;
-use sequencer::{Direction, HaltingSequencer, WindowDressingInstruction, WindowDressingSequencer};
+use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
+use sequencer::{Direction, WindowDressingInstruction, WindowDressingSequencer};
+#[cfg(feature = "stallguard")]
 use static_cell::StaticCell;
 
 pub const DRIVERS: usize = get_driver_count();
@@ -81,6 +83,7 @@ where
     let mut state = RunState::<DRIVERS>::default();
 
     loop {
+        board.watchdog_feed();
         let incoming = board.get_host_rpc().peek().await.unwrap_or(None);
 
         match incoming {
@@ -106,6 +109,7 @@ where
     }
 
     loop {
+        board.watchdog_feed();
         let tim = Timer::after_millis(250);
         let mut request_pos = 0u16;
 
