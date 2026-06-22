@@ -201,7 +201,7 @@ dependencies = [
  "embassy-rp",
  "embassy-time",
  "embassy-usb",
- "embedded-io 0.7.1",
+ "embedded-io-async 0.7.0",
  "fixed",
  "heapless 0.9.2",
  "pio",
@@ -211,7 +211,7 @@ dependencies = [
  "serde",
  "serde-json-core",
  "static_cell",
- "tmc2209",
+ "tmc2209-async",
 ]
 
 [[package]]
@@ -690,6 +690,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2564b9f813c544241430e147d8bc454815ef9ac998878d30cc3055449f7fd4c0"
 dependencies = [
+ "defmt 1.1.0",
  "embedded-io 0.7.1",
 ]
 
@@ -1574,14 +1575,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "tmc2209"
+name = "tmc2209-async"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47237e55390d19f8380254088dd01cfb8215fd68489a337ee02d671670fbcc9b"
+source = "git+https://github.com/thinkier/tmc2209-rs#81789ede7e98b8c4bf1cdc1b118cbb83c542bf6e"
 dependencies = [
  "bitfield 0.19.4",
  "embedded-hal 1.0.0",
- "embedded-io 0.7.1",
+ "embedded-io-async 0.7.0",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
 use defmt::{debug, error, info, write, Format, Formatter};
-use embedded_io::{ErrorType, Read, ReadExactError, ReadReady, Write};
+use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
 /// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io`]
 ///
@@ -13,26 +13,26 @@ pub struct SerialRpcHandle<const N: usize, IO> {
 }
 
 #[allow(unused)]
-pub enum SerialRpcError<E: embedded_io::Error> {
+pub enum SerialRpcError<E: embedded_io_async::Error> {
     IoError(E),
     IoReadExactError(ReadExactError<E>),
     ParseError(serde_json_core::de::Error),
     EncodeError(serde_json_core::ser::Error),
 }
 
-impl<E: embedded_io::Error> From<E> for SerialRpcError<E> {
+impl<E: embedded_io_async::Error> From<E> for SerialRpcError<E> {
     fn from(value: E) -> Self {
         SerialRpcError::IoError(value)
     }
 }
 
-impl<E: embedded_io::Error> From<ReadExactError<E>> for SerialRpcError<E> {
+impl<E: embedded_io_async::Error> From<ReadExactError<E>> for SerialRpcError<E> {
     fn from(value: ReadExactError<E>) -> Self {
         SerialRpcError::IoReadExactError(value)
     }
 }
 
-impl<E: embedded_io::Error + Format> Format for SerialRpcError<E> {
+impl<E: embedded_io_async::Error + Format> Format for SerialRpcError<E> {
     fn format(&self, fmt: Formatter) {
         match self {
             SerialRpcError::IoError(e) => write!(fmt, "IoError({:?})", e),
@@ -44,8 +44,6 @@ impl<E: embedded_io::Error + Format> Format for SerialRpcError<E> {
 }
 
 impl<const N: usize, IO> SerialRpcHandle<N, IO>
-where
-    IO: Read + ReadReady + Write,
 {
     #[allow(unused)]
     pub fn new(serial: IO) -> Self {
@@ -55,6 +53,7 @@ where
         }
     }
 }
+
 impl<const N: usize, IO> AsyncRpc for SerialRpcHandle<N, IO>
 where
     IO: Read + ReadReady + Write,
@@ -94,7 +93,7 @@ where
         //
         // It also keeps the memory for the buffer in the stack and not global.
         while i < N {
-            self.serial.read_exact(&mut incoming_packet_buf[i..=i])?;
+            self.serial.read_exact(&mut incoming_packet_buf[i..=i]).await?;
 
             match incoming_packet_buf[i] {
                 0x00 => SCB::sys_reset(),
@@ -116,7 +115,7 @@ where
         error!("Incoming buffer saturated, discarding serial input until seeing newline...");
         let mut drain = [0u8];
         loop {
-            self.serial.read_exact(&mut drain)?;
+            self.serial.read_exact(&mut drain).await?;
             match drain[0] {
                 0x00 => SCB::sys_reset(),
                 b'\n' => break,
@@ -134,7 +133,7 @@ where
         let packet = serde_json_core::to_slice(resp, &mut outgoing_packet_buf)
             .map_err(|e| SerialRpcError::EncodeError(e))?;
 
-        self.serial.write_all(&outgoing_packet_buf[0..=packet])?;
+        self.serial.write_all(&outgoing_packet_buf[0..=packet]).await?;
 
         Ok(())
     }
@@ -150,7 +149,7 @@ where
 
             i += j + 1;
         }
-        self.serial.write_all(&outgoing_packet_buf[0..i])?;
+        self.serial.write_all(&outgoing_packet_buf[0..i]).await?;
 
         Ok(())
     }

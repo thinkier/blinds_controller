@@ -63,6 +63,7 @@ impl<const N: usize> Default for RunState<N> {
     feature = "uart_configurable_driver",
     feature = "stallguard"
 ))]
+#[allow(unused)]
 pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
 where
     B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
@@ -105,6 +106,7 @@ where
     }
 
     loop {
+        let tim = Timer::after_millis(250);
         let mut request_pos = 0u16;
 
         // Limit the consumption of commands so it's not in this loop without checking the PIO,
@@ -164,7 +166,7 @@ where
                         request_pos |= 0b1 << channel;
                     }
                     IncomingRpcPacket::GetStallGuardResult { channel } => {
-                        let sg_result = board.get_sg_result(channel).await.unwrap_or(0);
+                        let sg_result = board.get_sg_result_halved(channel).await.unwrap_or(0);
                         let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
 
                         if let Err(e) = board.get_host_rpc().write(&out).await {
@@ -197,7 +199,7 @@ where
             let _ = print_sg_result(&mut board).await;
         }
 
-        Timer::after_millis(250).await;
+        tim.await;
     }
 }
 
@@ -219,7 +221,7 @@ where
     // According to my own measurements this function takes 200-300ms.
     // But I don't think it would be safe to offload to another task within the runtime.
     for channel in 0..N {
-        sgresult2[channel] = board.get_sg_result(channel as u8).await.map(|x| x / 2);
+        sgresult2[channel] = board.get_sg_result_halved(channel as u8).await;
     }
 
     defmt::debug!("SG_RESULT/2 = {}", sgresult2);

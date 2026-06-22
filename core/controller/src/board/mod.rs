@@ -7,7 +7,7 @@ pub mod tmc2209_uart;
 
 use crate::rpc::AsyncRpc;
 #[cfg(feature = "uart_configurable_driver")]
-use embedded_io::{Read, Write};
+use embedded_io_async::{Read, Write};
 
 #[macro_export]
 macro_rules! static_buffer {
@@ -52,7 +52,7 @@ pub trait StallGuard<S, const N: usize> {
     /// StallGuard Threshold, scaled back to 8 bits
     async fn set_sg_threshold(&mut self, channel: u8, sgthrs: u8);
     /// StallGuard result, scaled back to 8 bits
-    async fn get_sg_result(&mut self, channel: u8) -> Option<u8>;
+    async fn get_sg_result_halved(&mut self, channel: u8) -> Option<u8>;
 }
 
 #[cfg(feature = "uart_soft_half_duplex")]

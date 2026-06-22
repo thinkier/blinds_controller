@@ -16,8 +16,8 @@ use embassy_time::Timer;
 #[cfg(feature = "host-usb")]
 use embassy_usb::driver::Driver;
 #[cfg(feature = "host-uart")]
-use embedded_io::{ErrorType, ReadReady};
-use embedded_io::{Read, Write};
+use embedded_io_async::{ErrorType, ReadReady};
+use embedded_io_async::{Read, Write};
 
 pub mod utils;
 
