@@ -10,9 +10,13 @@ pub use serial::*;
 #[cfg(feature = "host-usb")]
 pub use usb_cdc_acm::*;
 
+pub trait AsyncRpcError {
+    fn is_broken_input(&self) -> bool;
+}
+
 #[allow(async_fn_in_trait)]
 pub trait AsyncRpc {
-    type Error: defmt::Format;
+    type Error: AsyncRpcError + defmt::Format;
 
     async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;

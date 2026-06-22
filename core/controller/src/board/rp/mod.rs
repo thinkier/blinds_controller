@@ -9,7 +9,7 @@ use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
-use embassy_rp::peripherals::{PIO0};
+use embassy_rp::peripherals::PIO0;
 #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
 use embassy_rp::watchdog::Watchdog;
@@ -60,9 +60,15 @@ where
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
     }
+
+    fn reset(&mut self) {
+        self.wdr.trigger_reset();
+    }
+
     fn enter_bootloader(&mut self) {
         embassy_rp::rom_data::reset_to_usb_boot(0, 0);
     }
+
     fn watchdog_feed(&mut self) {
         // According to https://arduino-pico.readthedocs.io/en/latest/rp2040.html
         // The maximum value is 8.3 seconds.  Any higher values will be truncated by the hardware.

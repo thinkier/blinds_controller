@@ -1,6 +1,7 @@
-use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
+use crate::rpc::{AsyncRpc, AsyncRpcError, IncomingRpcPacket, OutgoingRpcPacket};
 use cortex_m::peripheral::SCB;
 use defmt::{debug, error, info, trace, write, Format, Formatter};
+use embassy_time::{Duration, Instant};
 use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
 /// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io`]
@@ -8,13 +9,14 @@ use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 /// [`N`] should be the size of the buffer allocated in the stack to process a single message
 #[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
-    non_yield_ctr: u32,
+    last_read_success: Instant,
     read_buf: Option<IncomingRpcPacket>,
     pub serial: IO,
 }
 
 #[allow(unused)]
 pub enum SerialRpcError<E: embedded_io_async::Error> {
+    InputError,
     IoError(E),
     IoReadExactError(ReadExactError<E>),
     ParseError(serde_json_core::de::Error),
@@ -36,6 +38,7 @@ impl<E: embedded_io_async::Error> From<ReadExactError<E>> for SerialRpcError<E> 
 impl<E: embedded_io_async::Error + Format> Format for SerialRpcError<E> {
     fn format(&self, fmt: Formatter) {
         match self {
+            SerialRpcError::InputError => write!(fmt, "InputError"),
             SerialRpcError::IoError(e) => write!(fmt, "IoError({:?})", e),
             SerialRpcError::IoReadExactError(e) => write!(fmt, "IoReadExactError({:?})", e),
             SerialRpcError::ParseError(e) => write!(fmt, "ParseError({:?})", e),
@@ -44,11 +47,21 @@ impl<E: embedded_io_async::Error + Format> Format for SerialRpcError<E> {
     }
 }
 
+impl<E: embedded_io_async::Error> AsyncRpcError for SerialRpcError<E> {
+    fn is_broken_input(&self) -> bool {
+        if let SerialRpcError::InputError = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl<const N: usize, IO> SerialRpcHandle<N, IO> {
     #[allow(unused)]
     pub fn new(serial: IO) -> Self {
         Self {
-            non_yield_ctr: 0,
+            last_read_success: Instant::now(),
             read_buf: None,
             serial,
         }
@@ -79,12 +92,14 @@ where
         }
 
         if !self.serial.read_ready()? {
-            self.non_yield_ctr += 1;
+            if Instant::now() - self.last_read_success > Duration::from_secs(120) {
+                trace!("Read not ready - last success was more than 120 secs ago.");
+                return Err(SerialRpcError::InputError);
+            }
 
-            trace!("Read not ready {}", self.non_yield_ctr);
             return Ok(None);
         } else {
-            self.non_yield_ctr = 0;
+            self.last_read_success = Instant::now();
             trace!("Read ready");
         }
 

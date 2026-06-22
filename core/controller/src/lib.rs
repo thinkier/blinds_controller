@@ -22,6 +22,7 @@ use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
 use sequencer::{Direction, WindowDressingInstruction, WindowDressingSequencer};
 #[cfg(feature = "stallguard")]
 use static_cell::StaticCell;
+use crate::rpc::AsyncRpcError;
 
 pub const DRIVERS: usize = get_driver_count();
 
@@ -187,7 +188,14 @@ where
                     break;
                 }
                 Err(e) => {
-                    error!("Failed to read from host: {:?}", e);
+                    warn!("Failed to read from host: {:?}", e);
+                    if e.is_broken_input() {
+                        error!("Emitting state before rebooting...");
+                        let _ = bulk_emit_state(&mut board, seqs, 0xFFFF, true).await;
+
+                        Timer::after_secs(5).await;
+                        board.reset();
+                    }
                 }
             }
         }

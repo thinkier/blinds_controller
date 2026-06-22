@@ -31,6 +31,7 @@ pub trait ControllableBoard {
     type Rpc: AsyncRpc;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc;
+    fn reset(&mut self);
     fn enter_bootloader(&mut self);
     /// Feed the board's watchdog, should it be implemented.
     ///
