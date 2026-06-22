@@ -237,21 +237,27 @@ impl<const N: usize> SensingWindowDressingSequencer for HaltingSequencer<N> {
     fn trig_endstop(&mut self) {
         self.instructions.clear();
 
-        let opening = if self.current_state.position == self.desired_state.position {
-            self.current_state.tilt > self.desired_state.tilt
-        } else {
-            self.current_state.position < self.desired_state.position
-                || self.current_state.position == 100
+        // Offload logic hell to comparator implementation
+        //
+        // Opening = Ordering::Greater
+        // Closing = Ordering::Lesser
+        // Indeterminate = Ordering::Equal
+        let compare = self.desired_state.cmp(&self.current_state);
+
+        let position = match compare {
+            // Opening - max
+            Ordering::Greater => 100,
+            // Closing - min
+            Ordering::Less => 0,
+            // Indeterminate: delegate to desired state, as it has reached the end of the sequence
+            Ordering::Equal => self.desired_state.position,
         };
         let tilt = if self.full_tilt_quantity.is_some() {
             90
         } else {
             0
         };
-        let end_state = WindowDressingState {
-            position: if opening { 100 } else { 0 },
-            tilt,
-        };
+        let end_state = WindowDressingState { position, tilt };
 
         self.current_state = end_state;
         self.desired_state = end_state;

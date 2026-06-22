@@ -234,6 +234,54 @@ fn open_trig_endstop() {
 }
 
 #[test]
+fn trig_endstop_on_open_edge() {
+    let mut seq = HaltingSequencer::new_venetian(100_000, 180_0);
+    seq.current_state.position = 100;
+    seq.current_state.tilt = 90;
+    seq.desired_state.position = 100;
+    seq.desired_state.tilt = 90;
+
+    seq.trig_endstop();
+
+    assert_eq!(
+        seq.get_next_instruction(),
+        Some(WindowDressingInstruction {
+            quality: Direction::Hold,
+            quantity: 500,
+            completed_state: WindowDressingState {
+                position: 100,
+                tilt: 90
+            },
+        })
+    );
+    assert_eq!(seq.get_next_instruction(), None);
+}
+
+#[test]
+fn trig_endstop_on_close_edge() {
+    let mut seq = HaltingSequencer::new_venetian(100_000, 180_0);
+    seq.current_state.position = 0;
+    seq.current_state.tilt = 90;
+    seq.desired_state.position = 0;
+    seq.desired_state.tilt = 90;
+
+    seq.trig_endstop();
+
+    assert_eq!(
+        seq.get_next_instruction(),
+        Some(WindowDressingInstruction {
+            quality: Direction::Hold,
+            quantity: 500,
+            completed_state: WindowDressingState {
+                position: 0,
+                tilt: 90
+            },
+        })
+    );
+    assert_eq!(seq.get_next_instruction(), None);
+}
+
+#[test]
 fn close_full_sequence() {
     let mut seq = HaltingSequencer::new_venetian(100_000, 180_0);
     seq.current_state.position = 100;
