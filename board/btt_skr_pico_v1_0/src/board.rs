@@ -28,10 +28,10 @@ bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => UsbInterruptHandler<USB>;
 });
 
-static_buffer!(DRIVER_BUFFER_TX: 32);
-static_buffer!(DRIVER_BUFFER_RX: 128);
+static_buffer!(DRIVER_BUFFER_TX: 128);
+static_buffer!(DRIVER_BUFFER_RX: 512);
 static_buffer!(HOST_BUFFER_TX: 1024);
-static_buffer!(HOST_BUFFER_RX: 1024);
+static_buffer!(HOST_BUFFER_RX: 2048);
 
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
 static PIO0: StaticCell<Pio<PIO0>> = StaticCell::new();

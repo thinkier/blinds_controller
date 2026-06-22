@@ -196,7 +196,20 @@ where
         bulk_emit_state(&mut board, seqs, request_pos & !(finished | stopped), false).await;
 
         if option_env!("LOG_SG_RESULT").is_some() {
-            let _ = print_sg_result(&mut board).await;
+            let _ = print_sg_result(
+                &mut board,
+                seqs.iter().enumerate().fold(
+                    0u16,
+                    |x, (i, opt)| {
+                        if opt.is_some() {
+                            x | (1 << i)
+                        } else {
+                            x
+                        }
+                    },
+                ),
+            )
+            .await;
         }
 
         tim.await;
@@ -204,7 +217,7 @@ where
 }
 
 #[cfg(feature = "stallguard")]
-async fn print_sg_result<B, S, const N: usize>(board: &mut B)
+async fn print_sg_result<B, S, const N: usize>(board: &mut B, channels: u16)
 where
     B: StepStickBoard + StallGuard<S, N>,
 {
@@ -220,8 +233,10 @@ where
     //
     // According to my own measurements this function takes 200-300ms.
     // But I don't think it would be safe to offload to another task within the runtime.
-    for channel in 0..N {
-        sgresult2[channel] = board.get_sg_result_halved(channel as u8).await;
+    for i in 0..N {
+        if (channels >> i) & 0b1 == 1 {
+            sgresult2[i] = board.get_sg_result_halved(i as u8).await;
+        }
     }
 
     defmt::debug!("SG_RESULT/2 = {}", sgresult2);
