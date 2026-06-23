@@ -26,7 +26,7 @@ use static_cell::StaticCell;
 
 pub const DRIVERS: usize = get_driver_count();
 
-const BROWNOUT_PROTECTION: Duration = Duration::from_secs(1);
+const BROWNOUT_PROTECTION: Duration = Duration::from_secs(2);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 #[cfg(feature = "stallguard")]
 static STOPS: AtomicU16 = AtomicU16::new(0);
