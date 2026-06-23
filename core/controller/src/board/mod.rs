@@ -19,6 +19,7 @@ macro_rules! static_buffer {
 
 #[allow(clippy::wrong_self_convention)]
 pub trait StepStickBoard {
+    fn get_enabled(&mut self, channel: usize) -> bool;
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
     fn is_stopped(&mut self, channel: usize) -> bool;

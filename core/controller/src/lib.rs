@@ -4,6 +4,7 @@ pub mod board;
 pub mod rpc;
 
 use crate::board::*;
+use crate::rpc::AsyncRpcError;
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
 use core::mem;
@@ -17,15 +18,15 @@ use embassy_time::{Duration, Instant, Timer};
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use heapless::Vec;
 use portable_atomic::AtomicU16;
-#[cfg(feature = "stallguard")]
-use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
 use sequencer::{Direction, WindowDressingInstruction, WindowDressingSequencer};
 #[cfg(feature = "stallguard")]
+use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
+#[cfg(feature = "stallguard")]
 use static_cell::StaticCell;
-use crate::rpc::AsyncRpcError;
 
 pub const DRIVERS: usize = get_driver_count();
 
+const BROWNOUT_PROTECTION: Duration = Duration::from_secs(1);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 #[cfg(feature = "stallguard")]
 static STOPS: AtomicU16 = AtomicU16::new(0);
@@ -46,6 +47,7 @@ const fn get_driver_count() -> usize {
 pub const FREQUENCY: u16 = 1000;
 
 struct RunState<const N: usize> {
+    brownout_protection: Instant,
     next_buf: [Option<WindowDressingInstruction>; N],
     next_resume: [Instant; N],
     cur_direction: [Direction; N],
@@ -54,6 +56,7 @@ struct RunState<const N: usize> {
 impl<const N: usize> Default for RunState<N> {
     fn default() -> Self {
         RunState {
+            brownout_protection: Instant::MIN,
             next_buf: [None; N],
             next_resume: [Instant::now(); N],
             cur_direction: [Direction::Hold; N],
@@ -208,20 +211,18 @@ where
         bulk_emit_state(&mut board, seqs, request_pos & !(finished | stopped), false).await;
 
         if option_env!("LOG_SG_RESULT").is_some() {
-            let _ = print_sg_result(
-                &mut board,
-                seqs.iter().enumerate().fold(
-                    0u16,
-                    |x, (i, opt)| {
+            let _ =
+                print_sg_result(
+                    &mut board,
+                    seqs.iter().enumerate().fold(0u16, |x, (i, opt)| {
                         if opt.is_some() {
                             x | (1 << i)
                         } else {
                             x
                         }
-                    },
-                ),
-            )
-            .await;
+                    }),
+                )
+                .await;
         }
 
         tim.await;
@@ -317,7 +318,20 @@ where
         }
 
         if let Some(instr) = mem::replace(&mut state.next_buf[i], None) {
-            board.set_enabled(i, true);
+            if !board.get_enabled(i) {
+                if state.brownout_protection + BROWNOUT_PROTECTION <= now {
+                    board.set_enabled(i, true);
+                    state.brownout_protection = now;
+                } else {
+                    // If we're at risk of brownout, undo popping the instruction and move on
+                    //
+                    // From my experience, 3x1.65A steppers starting up are enough to brown a laptop
+                    // charger enough that the last stepper to start up will stall with StallGuard.
+                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
+                    continue;
+                }
+            }
+
             if instr.quality == state.cur_direction[i] {
                 board.add_steps(i, instr.quantity);
             } else if board.is_stopped(i) && state.next_resume[i] < now {

@@ -93,6 +93,10 @@ where
 }
 
 impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
+    fn get_enabled(&mut self, channel: usize) -> bool {
+        self.drivers[channel].enable.is_set_low()
+    }
+
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         if enabled {
             self.drivers[channel].enable.set_low()
