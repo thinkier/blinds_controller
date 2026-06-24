@@ -28,11 +28,17 @@ pub struct DriverPins<'a> {
     pub dir: Output<'a>,
 }
 
-pub struct Board<'a, const N: usize, D, H> {
+pub struct Board<'a, const N: usize, D, H, T> {
     pub drivers: [DriverPins<'a>; N],
     pub driver_serial: D,
     pub host_rpc: H,
     pub wdr: Watchdog,
+    #[cfg(feature = "thermistor")]
+    pub thermistor_values: thermistor::Thermistor,
+    #[cfg(feature = "thermistor")]
+    pub thermistor_pin: T,
+    #[cfg(not(feature = "thermistor"))]
+    pub _t: core::marker::PhantomData<T>,
     // State machines - alternative to an ACT timer on STM controllers
     pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
     pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
@@ -49,8 +55,8 @@ pub struct Board<'a, const N: usize, D, H> {
 }
 
 #[cfg(feature = "host-uart")]
-impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard
-    for Board<'a, N, D, SerialRpcHandle<BS, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO, T> ControllableBoard
+    for Board<'a, N, D, SerialRpcHandle<BS, IO>, T>
 where
     IO: Read + ReadReady + Write,
     <IO as ErrorType>::Error: defmt::Format,
@@ -77,8 +83,8 @@ where
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, const BS: usize, D, IO> ControllableBoard
-    for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>>
+impl<'a, const N: usize, const BS: usize, D, IO, T> ControllableBoard
+    for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>, T>
 where
     IO: Driver<'a>,
 {
@@ -92,7 +98,7 @@ where
     }
 }
 
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
+impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
     fn get_enabled(&mut self, channel: usize) -> bool {
         self.drivers[channel].enable.is_set_low()
     }
@@ -191,7 +197,7 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
 }
 
 #[cfg(feature = "uart_configurable_driver")]
-impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>
+impl<'a, const N: usize, D, H, T> ConfigurableBoard<N> for Board<'a, N, D, H, T>
 where
     D: Read + Write,
 {

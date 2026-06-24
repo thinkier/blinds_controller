@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use controller::board::rp::{bind_endstops, Board, DriverPins};
 #[cfg(feature = "host-uart")]
@@ -48,7 +49,7 @@ pub type HD = SerialRpcHandle<512, BufferedUart>;
 #[cfg(feature = "host-usb")]
 pub type HD = UsbRpcHandle<'static, 512, Driver<'static, USB>>;
 
-impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
+impl BoardInitialize for Board<'static, 4, BufferedUart, HD, ()> {
     fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
@@ -162,6 +163,8 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD> {
             driver_serial,
             host_rpc,
             wdr,
+            // thermistor: Thermistor::new_celsius(1e4, 25., 3375.), // ERT-J1VG103FA from PBLS-1.0/27 EDLC (Supercapacitor)
+            _t: PhantomData::default(),
             pio0_0: Some(pio0_0),
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),
