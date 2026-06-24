@@ -39,6 +39,9 @@ stallguard = []
 uart_soft_half_duplex = [] # Subtle peripheral issues
 uart_driver_shared_bus = [] # Subtle differences in board design
 
+# For when your power supply is shit
+brownout-protection = []
+
 [dependencies]
 # Debug deps
 defmt = "1.1.0"

@@ -26,6 +26,7 @@ use static_cell::StaticCell;
 
 pub const DRIVERS: usize = get_driver_count();
 
+#[cfg(feature = "brownout-protection")]
 const BROWNOUT_PROTECTION: Duration = Duration::from_secs(2);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 #[cfg(feature = "stallguard")]
@@ -47,6 +48,7 @@ const fn get_driver_count() -> usize {
 pub const FREQUENCY: u16 = 1000;
 
 struct RunState<const N: usize> {
+    #[cfg(feature = "brownout-protection")]
     brownout_protection: Instant,
     next_buf: [Option<WindowDressingInstruction>; N],
     next_resume: [Instant; N],
@@ -56,6 +58,7 @@ struct RunState<const N: usize> {
 impl<const N: usize> Default for RunState<N> {
     fn default() -> Self {
         RunState {
+            #[cfg(feature = "brownout-protection")]
             brownout_protection: Instant::MIN,
             next_buf: [None; N],
             next_resume: [Instant::now(); N],
@@ -319,16 +322,24 @@ where
 
         if let Some(instr) = mem::replace(&mut state.next_buf[i], None) {
             if !board.get_enabled(i) {
-                if state.brownout_protection + BROWNOUT_PROTECTION <= now {
-                    board.set_enabled(i, true);
-                    state.brownout_protection = now;
-                } else {
-                    // If we're at risk of brownout, undo popping the instruction and move on
-                    //
-                    // From my experience, 3x1.65A steppers starting up are enough to brown a laptop
-                    // charger enough that the last stepper to start up will stall with StallGuard.
-                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
-                    continue;
+                cfg_select! {
+                    // Thinking of buying this: https://www.digikey.com.au/en/products/detail/tecate-group/SCAP-PBLS-1-0-27/9929729
+                    feature = "brownout-protection" => {
+                        if state.brownout_protection + BROWNOUT_PROTECTION <= now {
+                            board.set_enabled(i, true);
+                            state.brownout_protection = now;
+                        } else {
+                            // If we're at risk of brownout, undo popping the instruction and move on
+                            //
+                            // From my experience, 3x1.65A steppers starting up are enough to brown a laptop
+                            // charger enough that the last stepper to start up will stall with StallGuard.
+                            let _ = mem::replace(&mut state.next_buf[i], Some(instr));
+                            continue;
+                        }
+                    },
+                    _ => {
+                        board.set_enabled(i, true);
+                    }
                 }
             }
 
