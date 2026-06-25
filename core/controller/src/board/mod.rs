@@ -5,6 +5,7 @@ pub mod stm32;
 #[cfg(feature = "tmc2209_uart")]
 pub mod tmc2209_uart;
 
+use embassy_executor::Spawner;
 use crate::rpc::AsyncRpc;
 #[cfg(feature = "uart_configurable_driver")]
 use embedded_io_async::{Read, Write};
@@ -38,6 +39,12 @@ pub trait ControllableBoard {
     ///
     /// Implementers of Watchdog should be much more generous than the timer in the run loop.
     fn watchdog_feed(&mut self) {}
+}
+
+#[allow(async_fn_in_trait)]
+pub trait ControlLoopInvoke {
+
+    async fn invoke(&mut self, _spawner: &mut Spawner);
 }
 
 #[cfg(feature = "uart_configurable_driver")]

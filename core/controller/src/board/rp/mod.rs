@@ -1,5 +1,5 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
+use crate::board::{ConfigurableBoard, ControlLoopInvoke, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
@@ -33,12 +33,9 @@ pub struct Board<'a, const N: usize, D, H, T> {
     pub driver_serial: D,
     pub host_rpc: H,
     pub wdr: Watchdog,
-    #[cfg(feature = "thermistor")]
-    pub thermistor_values: thermistor::Thermistor,
-    #[cfg(feature = "thermistor")]
-    pub thermistor_pin: T,
-    #[cfg(not(feature = "thermistor"))]
-    pub _t: core::marker::PhantomData<T>,
+    // Implementer defined, useful for debugging or carrying any information that
+    // the controller does not care about
+    pub board_state: T,
     // State machines - alternative to an ACT timer on STM controllers
     pub pio0_0: Option<CountedSqrWav<'a, PIO0, 0>>,
     pub pio0_1: Option<CountedSqrWav<'a, PIO0, 1>>,
@@ -229,5 +226,12 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
         input.wait_for_low().await;
         debug!("Endstop LOW detected for channel {}", i);
         Timer::after_secs(1).await; // Dead Time Insertion
+    }
+}
+
+impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
+where T: ControlLoopInvoke {
+    async fn invoke(&mut self, spawner: &mut Spawner) {
+        self.board_state.invoke(spawner).await
     }
 }

@@ -1,26 +1,29 @@
-use core::marker::PhantomData;
 use controller::board::rp::utils::counted_sqr_wav_pio::{CountedSqrWav, CountedSqrWavProgram};
 use controller::board::rp::{bind_endstops, Board, DriverPins};
+use controller::board::ControlLoopInvoke;
 #[cfg(feature = "host-uart")]
 use controller::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
 use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
 use controller::static_buffer;
+use defmt::{debug, error};
 use embassy_executor::Spawner;
+use embassy_rp::adc::{self, Adc};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, UART0, UART1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
-use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
+use embassy_rp::uart::{self, BufferedInterruptHandler, BufferedUart};
 #[cfg(feature = "host-usb")]
 use embassy_rp::usb::Driver;
 use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
-use embassy_rp::Peripherals;
 use embassy_rp::watchdog::Watchdog;
+use embassy_rp::Peripherals;
+use embassy_time::Duration;
 #[cfg(feature = "host-usb")]
 use embassy_usb::UsbDevice;
-use embassy_time::Duration;
 use static_cell::StaticCell;
+use thermistor::NtcThermistor;
 
 pub const FREQUENCY: u16 = 1000;
 
@@ -49,7 +52,13 @@ pub type HD = SerialRpcHandle<512, BufferedUart>;
 #[cfg(feature = "host-usb")]
 pub type HD = UsbRpcHandle<'static, 512, Driver<'static, USB>>;
 
-impl BoardInitialize for Board<'static, 4, BufferedUart, HD, ()> {
+pub struct BttSkrPicoV1_0 {
+    thermistor: NtcThermistor,
+    adc: Adc<'static, adc::Blocking>,
+    thermistor_pin: adc::Channel<'static>,
+}
+
+impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
     fn init(spawner: Spawner) -> Self {
         let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
@@ -86,7 +95,7 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, ()> {
             FREQUENCY,
         );
 
-        let mut uart_cfg = Config::default();
+        let mut uart_cfg = uart::Config::default();
         uart_cfg.baudrate = 115200;
 
         let driver_serial = BufferedUart::new(
@@ -163,13 +172,63 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, ()> {
             driver_serial,
             host_rpc,
             wdr,
-            // thermistor: Thermistor::new_celsius(1e4, 25., 3375.), // ERT-J1VG103FA from PBLS-1.0/27 EDLC (Supercapacitor)
-            _t: PhantomData::default(),
+            board_state: BttSkrPicoV1_0 {
+                thermistor: thermistor::ERT_J1VGXXA, // ERT-J1VG103FA from PBLS-1.0/27 EDLC (Supercapacitor)
+                adc: Adc::new_blocking(p.ADC.reborrow(), adc::Config::default()),
+                thermistor_pin: adc::Channel::new_pin(p.PIN_27.reborrow(), Pull::None),
+            },
             pio0_0: Some(pio0_0),
             pio0_1: Some(pio0_1),
             pio0_2: Some(pio0_2),
             pio0_3: Some(pio0_3),
         }
+    }
+}
+
+impl ControlLoopInvoke for BttSkrPicoV1_0 {
+    async fn invoke(&mut self, _spawner: &mut Spawner) {
+        let temp = self.measure_temp();
+        debug!("Thermistor is at {}C", temp);
+    }
+}
+
+impl BttSkrPicoV1_0 {
+    fn read_thermistor_voltage(&mut self) -> u16 {
+        match self.adc.blocking_read(&mut self.thermistor_pin) {
+            Ok(thermistor) => {
+                thermistor
+            },
+            Err(e) => {
+                error!("Failed to read thermistor: {}", e);
+                1
+            }
+        }
+    }
+
+    /// The standard voltage divider formula is $V_{R_2} = \frac{V_{src}R_2}{R_1 + R_2}$. Transposed,
+    /// $$
+    /// R_2 = \frac{V_{R_2}R_1}{V_{src} - V_{R_2}}
+    /// $$
+    ///
+    /// ADC measures voltage, and we want the resistance for our thermistor calculation, so let's move a few things...
+    ///
+    /// Mapping the thermistor ports to the standard voltage divider formula,
+    /// you'll see that the thermistor is in the position of $R_2$, and we read $V_{R_2}$ from ADC
+    /// based on <https://github.com/bigtreetech/SKR-Pico/blob/master/Hardware/BTT%20SKR%20Pico%20V1.0-SCH.pdf>
+    ///
+    /// Also from the same datasheet, $R_1$ is 4.7KOhms
+    ///
+    /// From the RP2040 specifications, the ADC is 12-bit (&therefore; value range $[0, 4096)$), which makes $V_{src} = 4095$
+    // The intermediates for the $R_2$ value should be on the scale of ~24 bit, scaling up to u32 to prevent overflows
+    // u32 maths is a lot faster than f32 non-hf maths
+    fn measure_temp(&mut self) -> f32 {
+        let v_src: u32 = 4095;
+        let r_1: u32 = 4700;
+        let v_r_2 = self.read_thermistor_voltage() as u32;
+
+        let r_2 = (v_r_2 * r_1) / (v_src - v_r_2);
+
+        self.thermistor.get_temp_celsius(r_2 as f32)
     }
 }
 

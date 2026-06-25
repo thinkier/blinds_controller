@@ -4,9 +4,9 @@ use defmt::{debug, error, info, trace, write, Format, Formatter};
 use embassy_time::{Duration, Instant};
 use embedded_io_async::{ErrorType, Read, ReadExactError, ReadReady, Write};
 
-/// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io`]
+/// Trait implementer and wrapper of a text-based port over any simple hardware protocol implementing [`embedded_io_async`]
 ///
-/// [`N`] should be the size of the buffer allocated in the stack to process a single message
+/// `N` should be the size of the buffer allocated in the stack to process a single message
 #[allow(unused)]
 pub struct SerialRpcHandle<const N: usize, IO> {
     last_read_success: Instant,

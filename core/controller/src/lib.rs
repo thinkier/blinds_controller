@@ -4,9 +4,8 @@ pub mod board;
 pub mod rpc;
 
 use crate::board::*;
-use crate::rpc::AsyncRpcError;
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
-use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
+use crate::rpc::{AsyncRpc, AsyncRpcError, IncomingRpcPacket, OutgoingRpcPacket};
 use core::mem;
 use core::sync::atomic::Ordering;
 #[allow(unused)]
@@ -70,12 +69,16 @@ impl<const N: usize> Default for RunState<N> {
 #[cfg(all(
     any(feature = "host-uart", feature = "host-usb"),
     feature = "uart_configurable_driver",
-    feature = "stallguard"
+    feature = "stallguard",
 ))]
 #[allow(unused)]
-pub async fn run<B, S, const N: usize>(_spawner: Spawner, mut board: B)
+pub async fn run<B, S, const N: usize>(mut spawner: Spawner, mut board: B)
 where
-    B: StepStickBoard + ControllableBoard + ConfigurableBoard<N> + StallGuard<S, N>,
+    B: StepStickBoard
+        + ControllableBoard
+        + ConfigurableBoard<N>
+        + StallGuard<S, N>
+        + ControlLoopInvoke,
 {
     info!("Initializing controller...");
 
@@ -118,6 +121,7 @@ where
     loop {
         board.watchdog_feed();
         let tim = Timer::after_millis(250);
+        board.invoke(&mut spawner).await;
         let mut request_pos = 0u16;
 
         // Limit the consumption of commands so it's not in this loop without checking the PIO,

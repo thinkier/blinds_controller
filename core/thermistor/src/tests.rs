@@ -1,8 +1,8 @@
-use crate::Thermistor;
+use crate::NtcThermistor;
 
 #[test]
 fn kelvin_to_celsius() {
-    let thermistor = Thermistor::new_celsius(0., 0., 0.);
+    let thermistor = NtcThermistor::new_celsius(0., 0., 0.);
 
     assert_eq!(thermistor.ref_temp_kelvin, 273.15);
 }
@@ -23,12 +23,12 @@ macro_rules! assert_f32_eq {
 /// https://industrial.panasonic.com/cdbs/www-data/pdf/AUA0000/AUA0000C8.pdf
 // The datasheet's Page 5 table uses 3375 as $\beta_{25/50}$ and 3435 as $\beta_{25/85}$ but
 // Page 4 with part ID uses 3380 as $\beta_{25/50}$
-mod ertjvg103_a {
-    use crate::Thermistor;
+mod ert_j1vgxxa {
+    use crate::{NtcThermistor, ERT_J1VGXXA};
 
     #[test]
     fn beta_25_50() {
-        let thermistor = Thermistor::new_celsius(1e4, 25., 3375.);
+        let thermistor = NtcThermistor::new_celsius(1e4, 25., 3375.);
 
         assert_f32_eq!(0.1, 25., thermistor.get_temp_celsius(1e4));
         assert_f32_eq!(0.1, 50., thermistor.get_temp_celsius(1e4 / 0.4165));
@@ -36,7 +36,7 @@ mod ertjvg103_a {
 
     #[test]
     fn beta_25_85() {
-        let thermistor = Thermistor::new_celsius(1e4, 25., 3435.);
+        let thermistor = ERT_J1VGXXA;
         assert_f32_eq!(0.1, 25., thermistor.get_temp_celsius(1e4));
         assert_f32_eq!(0.1, 85., thermistor.get_temp_celsius(1e4 / 0.1451));
     }

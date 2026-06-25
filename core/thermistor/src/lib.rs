@@ -3,16 +3,27 @@
 #[cfg(test)]
 mod tests;
 
+/// Pre-filled for the ERT-J??G line with $\beta_{25/85}$
+/// https://industrial.panasonic.com/cdbs/www-data/pdf/AUA0000/AUA0000C8.pdf
+pub const ERT_J1VGXXA: NtcThermistor = NtcThermistor::new_celsius(1e4, 25., 3435.);
+
+/// Pre-filled for the EPCOS 100K line with $\beta_{25/85}$
+/// https://www.mouser.com/catalog/specsheets/glass_enc_sensors__b57560__g560__g1560.pdf
+///
+/// Most commonly used for cheap 3D printers
+// I added this for debugging because I have a handful of spares tinkering with an Ender 3 clone
+pub const EPCOS_100K: NtcThermistor = NtcThermistor::new_celsius(1e5, 25., 4072.);
+
 /// Soft-float compatible naive thermistor calculator
-pub struct Thermistor {
+pub struct NtcThermistor {
     pub ref_resistance: f32,
     pub ref_temp_kelvin: f32,
     pub beta: f32,
 }
 
-impl Thermistor {
-    pub const fn new_celsius(ref_resistance: f32, ref_temp_celsius: f32, beta: f32) -> Thermistor {
-        Thermistor {
+impl NtcThermistor {
+    pub const fn new_celsius(ref_resistance: f32, ref_temp_celsius: f32, beta: f32) -> NtcThermistor {
+        NtcThermistor {
             ref_resistance,
             ref_temp_kelvin: ref_temp_celsius + 273.15,
             beta,
@@ -24,7 +35,7 @@ impl Thermistor {
     }
 }
 
-impl Thermistor {
+impl NtcThermistor {
     /// $$
     /// \beta = \frac{ln(\frac{R_{ref}}{R_{measured}})}{T_{ref}^{-1} - T_{measured}^{-1}}
     /// $$
