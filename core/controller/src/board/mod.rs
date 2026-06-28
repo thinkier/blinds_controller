@@ -2,13 +2,20 @@
 pub mod rp;
 #[cfg(feature = "stm32")]
 pub mod stm32;
-#[cfg(feature = "tmc2209_uart")]
+#[cfg(any(feature = "tmc2209_uart", feature = "tmc2209_uart_async"))]
 pub mod tmc2209_uart;
 
 use embassy_executor::Spawner;
 use crate::rpc::AsyncRpc;
-#[cfg(feature = "uart_configurable_driver")]
-use embedded_io_async::{Read, Write};
+cfg_select! {
+    feature = "uart_configurable_driver" => {
+        use embedded_io::{Read, Write};
+    }
+    feature = "uart_configurable_driver_async" => {
+        use embedded_io_async::{Read, Write};
+    }
+    _ => {}
+}
 
 #[macro_export]
 macro_rules! static_buffer {
@@ -18,13 +25,12 @@ macro_rules! static_buffer {
     };
 }
 
-#[allow(clippy::wrong_self_convention)]
 pub trait StepStickBoard {
     fn get_enabled(&mut self, channel: usize) -> bool;
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
-    fn is_stopped(&mut self, channel: usize) -> bool;
-    fn is_ready_for_steps(&mut self, channel: usize) -> bool;
+    fn get_stopped(&mut self, channel: usize) -> bool;
+    fn get_ready_for_steps(&mut self, channel: usize) -> bool;
     fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool>;
     fn clear_steps(&mut self, channel: usize);
 }
@@ -47,7 +53,7 @@ pub trait ControlLoopInvoke {
     async fn invoke(&mut self, _spawner: &mut Spawner);
 }
 
-#[cfg(feature = "uart_configurable_driver")]
+#[cfg(any(feature = "uart_configurable_driver", feature = "uart_configurable_driver_async"))]
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 

@@ -1,39 +1,53 @@
+use controller::board::stm32::bitbanged_uart::BitbangedHalfDuplexUart;
 use controller::board::stm32::{Board, DriverPins};
+use controller::board::ControlLoopInvoke;
 use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
+use core::marker::PhantomData;
 use embassy_executor::Spawner;
 use embassy_stm32::bind_interrupts;
-use embassy_stm32::exti::ExtiInput;
+use embassy_stm32::exti::{self, Channel, ExtiInput};
 use embassy_stm32::gpio::{Level, Output, Pull, Speed};
-use embassy_stm32::peripherals::USB;
-use embassy_stm32::usart::{BufferedUart, Config};
-use embassy_stm32::usb::{Driver, InterruptHandler};
+use embassy_stm32::mode::Async;
+use embassy_stm32::peripherals::{EXTI0, EXTI5, USB};
+use embassy_stm32::usb::{self, Driver as UsbDriver};
 use embassy_usb::UsbDevice;
+use static_cell::StaticCell;
 
 bind_interrupts!(struct Irqs {
-    USB_UCPD1_2 => InterruptHandler<USB>;
+    EXTI0_1 => exti::InterruptHandler<<EXTI0 as Channel>::IRQ>;
+    EXTI4_15 => exti::InterruptHandler<<EXTI5 as Channel>::IRQ>;
+    USB_UCPD1_2 => usb::InterruptHandler<USB>;
 });
+
+static USB_HANDLE: StaticCell<UsbCdcAcmStream<'static, UsbDriver<'static, USB>>> = StaticCell::new();
 
 pub trait BoardInitialize {
     fn init(spawner: Spawner) -> Self;
 }
 
 impl BoardInitialize
-    for Board<'static, 5, BufferedUart<'static>, UsbCdcAcmStream<'static, Driver<'static, USB>>>
+    for Board<
+        'static,
+        4,
+        BitbangedHalfDuplexUart<'static, ()>,
+        UsbRpcHandle<'static, 1024, UsbCdcAcmStream<'static, UsbDriver<'static, USB>>>,
+        BttMantaE3ez,
+    >
 {
     fn init(spawner: Spawner) -> Self {
         let mut p = embassy_stm32::init(Default::default());
 
-        let end_stops: [Option<ExtiInput<'static>>; 5] = [
-            Some(ExtiInput::new(p.PC4, p.EXTI4, Pull::Down)),
-            Some(ExtiInput::new(p.PB0, p.EXTI0, Pull::Down)),
-            Some(ExtiInput::new(p.PC6, p.EXTI6, Pull::Down)),
-            Some(ExtiInput::new(p.PC5, p.EXTI5, Pull::Down)),
-            Some(ExtiInput::new(p.PB1, p.EXTI1, Pull::Down)),
+        let end_stops: [Option<ExtiInput<'static, Async>>; 4] = [
+            // X ENN and X STEP are shared with SWCLK and SWDIO, absolutely banned
+            // Some(ExtiInput::new(p.PC4, p.EXTI4, Pull::Down, Irqs)),
+            Some(ExtiInput::new(p.PB0, p.EXTI0, Pull::Down, Irqs)),
+            Some(ExtiInput::new(p.PC6, p.EXTI6, Pull::Down, Irqs)),
+            Some(ExtiInput::new(p.PC5, p.EXTI5, Pull::Down, Irqs)),
+            Some(ExtiInput::new(p.PB1, p.EXTI1, Pull::Down, Irqs)),
         ];
 
-        let drivers: [Option<DriverPins<'static>>; 5] = [
-            // X ENN and X STEP are shared with SWCLK and SWDIO, no go...
-            None,
+        let drivers: [Option<DriverPins<'static>>; 4] = [
+            // X ENN and X STEP are shared with SWCLK and SWDIO, absolutely banned
             // Some(DriverPins {
             //     enable: Output::new(p.PA13, Level::Low, Speed::Low),
             //     dir: Output::new(p.PA10, Level::Low, Speed::Low),
@@ -56,30 +70,46 @@ impl BoardInitialize
             }),
         ];
 
-        let mut uart_cfg = Config::default();
-        uart_cfg.baudrate = 115200;
-        let mut driver_serial = [
-            // PB8, // USART3 or USART6
-            // PC9, // Bitbanged
-            // PD0, // Bitbanged
-            // PD1, // Bitbanged
-            // PB5 // Bitbanged
+        let driver_serial = [
+            // X ENN and X STEP are shared with SWCLK and SWDIO, absolutely banned
+            // BitbangedHalfDuplexUart {
+            //     pin: PhantomData::default(), // PB8
+            // },
+            BitbangedHalfDuplexUart {
+                pin: PhantomData::default(), // PC9
+            },
+            BitbangedHalfDuplexUart {
+                pin: PhantomData::default(), // PD0
+            },
+            BitbangedHalfDuplexUart {
+                pin: PhantomData::default(), // PD1
+            },
+            BitbangedHalfDuplexUart {
+                pin: PhantomData::default(), // PB5
+            },
         ];
 
-        let usb_driver = Driver::new(p.USB, Irqs, p.PA12, p.PA11);
-        let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
-        let _ = spawner.spawn(usb_task(usb_device));
+        let usb_driver = UsbDriver::new(p.USB, Irqs, p.PA12, p.PA11);
+        let (usb_device, host_serial) = UsbCdcAcmStream::init(usb_driver);
+        let _ = spawner.spawn(usb_task(usb_device).expect("Failed to spawn USB task"));
 
         Board {
             end_stops,
             drivers,
             driver_serial,
-            host_rpc,
+            host_rpc: UsbRpcHandle::new(host_serial),
+            board_state: BttMantaE3ez {},
         }
     }
 }
 
 #[embassy_executor::task]
-async fn usb_task(mut usb: UsbDevice<'static, Driver<'static, USB>>) {
+async fn usb_task(mut usb: UsbDevice<'static, UsbDriver<'static, USB>>) {
     usb.run().await;
+}
+
+pub struct BttMantaE3ez {}
+
+impl ControlLoopInvoke for BttMantaE3ez {
+    async fn invoke(&mut self, _spawner: &mut Spawner) {}
 }

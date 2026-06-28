@@ -1,4 +1,4 @@
-use crate::rpc::{AsyncRpc, IncomingRpcPacket, OutgoingRpcPacket};
+use crate::rpc::{AsyncRpc, AsyncRpcError, IncomingRpcPacket, OutgoingRpcPacket};
 use defmt::{Format, Formatter};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use embassy_usb::driver::Driver;
@@ -81,6 +81,12 @@ impl Format for UsbRpcError {
     }
 }
 
+impl AsyncRpcError for UsbRpcError {
+    fn is_broken_input(&self) -> bool {
+        false
+    }
+}
+
 pub struct UsbRpcHandle<'a, const N: usize, D: Driver<'a>> {
     pub packet_buf: [u8; N],
     pub packet_cursor: usize,
@@ -102,6 +108,10 @@ where
     D: Driver<'a>,
 {
     type Error = UsbRpcError;
+
+    async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+        todo!()
+    }
 
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
         if self.stream.class.line_coding().data_rate() <= 1200 {

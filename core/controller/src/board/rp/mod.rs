@@ -116,7 +116,7 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
         }
     }
 
-    fn is_stopped(&mut self, channel: usize) -> bool {
+    fn get_stopped(&mut self, channel: usize) -> bool {
         match channel {
             0 => self.pio0_0.as_mut().map(|p| p.stopped()).unwrap_or(true),
             1 => self.pio0_1.as_mut().map(|p| p.stopped()).unwrap_or(true),
@@ -134,7 +134,7 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
         }
     }
 
-    fn is_ready_for_steps(&mut self, channel: usize) -> bool {
+    fn get_ready_for_steps(&mut self, channel: usize) -> bool {
         match channel {
             0 => self.pio0_0.as_mut().map(|p| p.ready()).unwrap_or(false),
             1 => self.pio0_1.as_mut().map(|p| p.ready()).unwrap_or(false),
@@ -193,7 +193,7 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
     }
 }
 
-#[cfg(feature = "uart_configurable_driver")]
+#[cfg(feature = "uart_configurable_driver_async")]
 impl<'a, const N: usize, D, H, T> ConfigurableBoard<N> for Board<'a, N, D, H, T>
 where
     D: Read + Write,

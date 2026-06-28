@@ -13,6 +13,8 @@ use defmt::*;
 #[allow(unused)]
 use embassy_executor::Spawner;
 #[allow(unused)]
+use embassy_time::Ticker;
+#[allow(unused)]
 use embassy_time::{Duration, Instant, Timer};
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use heapless::Vec;
@@ -68,7 +70,10 @@ impl<const N: usize> Default for RunState<N> {
 
 #[cfg(all(
     any(feature = "host-uart", feature = "host-usb"),
-    feature = "uart_configurable_driver",
+    any(
+        feature = "uart_configurable_driver",
+        feature = "uart_configurable_driver_async"
+    ),
     feature = "stallguard",
 ))]
 #[allow(unused)]
@@ -118,9 +123,9 @@ where
         }
     }
 
+    let mut ticker = Ticker::every(Duration::from_millis(250));
     loop {
         board.watchdog_feed();
-        let tim = Timer::after_millis(250);
         board.invoke(&mut spawner).await;
         let mut request_pos = 0u16;
 
@@ -159,7 +164,14 @@ where
                         }
 
                         if let Some(sgthrs) = sgthrs {
-                            board.set_sg_threshold(channel, sgthrs).await;
+                            cfg_select! {
+                                feature = "uart_configurable_driver" => {
+                                    board.set_sg_threshold(channel, sgthrs);
+                                },
+                                feature = "uart_configurable_driver_async" => {
+                                    board.set_sg_threshold(channel, sgthrs).await;
+                                }
+                            }
                         }
 
                         seqs[channel as usize] = Some(seq);
@@ -232,7 +244,7 @@ where
                 .await;
         }
 
-        tim.await;
+        ticker.next().await;
     }
 }
 
@@ -320,7 +332,7 @@ where
             continue;
         };
 
-        if !board.is_ready_for_steps(i) {
+        if !board.get_ready_for_steps(i) {
             continue;
         }
 
@@ -349,7 +361,7 @@ where
 
             if instr.quality == state.cur_direction[i] {
                 board.add_steps(i, instr.quantity);
-            } else if board.is_stopped(i) && state.next_resume[i] < now {
+            } else if board.get_stopped(i) && state.next_resume[i] < now {
                 state.cur_direction[i] = instr.quality;
 
                 stopped |= 1 << i;
@@ -378,7 +390,7 @@ where
             }
         } else if let Some(next) = seq.get_next_instruction_grouped(FREQUENCY as u32) {
             state.next_buf[i] = Some(next);
-        } else if board.is_stopped(i) {
+        } else if board.get_stopped(i) {
             board.set_enabled(i, false);
         }
     }

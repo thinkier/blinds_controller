@@ -1,12 +1,20 @@
-use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
+pub mod bitbanged_uart;
+
+use crate::board::{ConfigurableBoard, ControlLoopInvoke, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-usb")]
 use crate::rpc::{DriverType, UsbRpcHandle};
 use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
+use embassy_executor::Spawner;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::Output;
+use embassy_stm32::mode::Async;
 use embassy_usb::driver::Driver;
-use embedded_io::{Read, Write};
+cfg_select! {
+    feature = "uart_configurable_driver" => {
+        use embedded_io::{Read, Write};
+    }
+}
 
 pub struct DriverPins<'a> {
     pub enable: Output<'a>,
@@ -14,15 +22,16 @@ pub struct DriverPins<'a> {
     pub dir: Output<'a>,
 }
 
-pub struct Board<'a, const N: usize, D, H> {
-    pub end_stops: [Option<ExtiInput<'a>>; N],
+pub struct Board<'a, const N: usize, D, H, T> {
+    pub end_stops: [Option<ExtiInput<'a, Async>>; N],
     pub drivers: [Option<DriverPins<'a>>; N],
     pub driver_serial: [D; N],
     pub host_rpc: H,
+    pub board_state: T,
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, D, H> ControllableBoard for Board<'a, N, D, H>
+impl<'a, const N: usize, D, H, T> ControllableBoard for Board<'a, N, D, H, T>
 where
     H: DriverType,
     H::Driver: Driver<'a>,
@@ -32,9 +41,21 @@ where
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         todo!()
     }
+
+    fn reset(&mut self) {
+        todo!()
+    }
+
+    fn enter_bootloader(&mut self) {
+        todo!()
+    }
 }
 
-impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
+impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
+    fn get_enabled(&mut self, channel: usize) -> bool {
+        todo!()
+    }
+
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         todo!()
     }
@@ -43,11 +64,11 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
         todo!()
     }
 
-    fn is_stopped(&mut self, channel: usize) -> bool {
+    fn get_stopped(&mut self, channel: usize) -> bool {
         todo!()
     }
 
-    fn is_ready_for_steps(&mut self, channel: usize) -> bool {
+    fn get_ready_for_steps(&mut self, channel: usize) -> bool {
         todo!()
     }
 
@@ -61,7 +82,7 @@ impl<'a, const N: usize, D, H> StepStickBoard for Board<'a, N, D, H> {
 }
 
 #[cfg(feature = "uart_configurable_driver")]
-impl<'a, const N: usize, D, H> ConfigurableBoard<N> for Board<'a, N, D, H>
+impl<'a, const N: usize, D, H, T> ConfigurableBoard<N> for Board<'a, N, D, H, T>
 where
     D: Read + Write,
 {
@@ -76,10 +97,17 @@ where
 ///
 /// See: https://docs.embassy.dev/embassy-stm32/git/stm32g0b1re/exti/struct.ExtiInput.html#method.wait_for_rising_edge
 #[embassy_executor::task(pool_size = DRIVERS)]
-async fn stop_detector(i: usize, mut input: ExtiInput<'static>) {
+async fn stop_detector(i: usize, mut input: ExtiInput<'static, Async>) {
     loop {
         input.wait_for_high().await;
         STOPS.bit_set(i as u32, Ordering::Release);
         input.wait_for_low().await;
+    }
+}
+
+impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
+where T: ControlLoopInvoke {
+    async fn invoke(&mut self, spawner: &mut Spawner) {
+        self.board_state.invoke(spawner).await
     }
 }

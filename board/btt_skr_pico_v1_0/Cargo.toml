@@ -29,7 +29,7 @@ path = "../../core/controller"
 features = ["rp", "thumbv6m",
     "driver-qty-4",
     "brownout-protection",
-    "tmc2209_uart", "uart_driver_shared_bus", "stallguard"
+    "tmc2209_uart_async", "uart_driver_shared_bus", "stallguard"
 ]
 
 [profile.release]
