@@ -5,8 +5,14 @@ pub mod stm32;
 #[cfg(any(feature = "tmc2209_uart", feature = "tmc2209_uart_async"))]
 pub mod tmc2209_uart;
 
-use embassy_executor::Spawner;
+cfg_select! {
+    feature = "rp" => { use rp::Board; },
+    feature = "stm32" => { use stm32::Board; }
+    _ => {}
+}
+
 use crate::rpc::AsyncRpc;
+use embassy_executor::Spawner;
 cfg_select! {
     feature = "uart_configurable_driver" => {
         use embedded_io::{Read, Write};
@@ -39,7 +45,9 @@ pub trait ControllableBoard {
     type Rpc: AsyncRpc;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc;
+
     fn reset(&mut self);
+
     fn enter_bootloader(&mut self);
     /// Feed the board's watchdog, should it be implemented.
     ///
@@ -49,11 +57,13 @@ pub trait ControllableBoard {
 
 #[allow(async_fn_in_trait)]
 pub trait ControlLoopInvoke {
-
     async fn invoke(&mut self, _spawner: &mut Spawner);
 }
 
-#[cfg(any(feature = "uart_configurable_driver", feature = "uart_configurable_driver_async"))]
+#[cfg(any(
+    feature = "uart_configurable_driver",
+    feature = "uart_configurable_driver_async"
+))]
 pub trait ConfigurableBoard<const N: usize> {
     type DriverSerial: Read + Write;
 
@@ -98,5 +108,15 @@ where
         Timer::after_millis(50).await;
         let _ = self.flush();
         let _ = self.read_exact(&mut [0u8; N]);
+    }
+}
+
+#[cfg(any(feature = "rp", feature = "stm32"))]
+impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
+where
+    T: ControlLoopInvoke,
+{
+    async fn invoke(&mut self, spawner: &mut Spawner) {
+        self.board_state.invoke(spawner).await
     }
 }

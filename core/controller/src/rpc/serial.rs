@@ -75,14 +75,14 @@ where
 {
     type Error = SerialRpcError<IO::Error>;
 
-    async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<&IncomingRpcPacket>, Self::Error> {
         if self.read_buf.is_some() {
-            return Ok(self.read_buf.clone());
+            return Ok(self.read_buf.as_ref());
         }
 
         self.read_buf = self.read().await?;
 
-        Ok(self.read_buf.clone())
+        Ok(self.read_buf.as_ref())
     }
 
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error> {

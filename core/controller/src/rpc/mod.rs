@@ -18,7 +18,7 @@ pub trait AsyncRpcError {
 pub trait AsyncRpc {
     type Error: AsyncRpcError + defmt::Format;
 
-    async fn peek(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
+    async fn peek(&mut self) -> Result<Option<&IncomingRpcPacket>, Self::Error>;
     async fn read(&mut self) -> Result<Option<IncomingRpcPacket>, Self::Error>;
     async fn write(&mut self, packet: &OutgoingRpcPacket) -> Result<(), Self::Error>;
     /// The default implementation is to call write repeatedly,

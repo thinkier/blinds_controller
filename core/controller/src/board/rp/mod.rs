@@ -1,5 +1,5 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableBoard, ControlLoopInvoke, ControllableBoard, StepStickBoard};
+use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
@@ -8,7 +8,7 @@ use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::{Input, Output};
+use embassy_rp::gpio::{Input, Level, Output};
 use embassy_rp::peripherals::PIO0;
 #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
@@ -81,15 +81,20 @@ where
 
 #[cfg(feature = "host-usb")]
 impl<'a, const N: usize, const BS: usize, D, IO, T> ControllableBoard
-    for Board<'a, N, D, UsbRpcHandle<'a, BS, IO>, T>
+    for Board<'a, N, D, UsbRpcHandle<BS, IO>, T>
 where
     IO: Driver<'a>,
 {
-    type Rpc = UsbRpcHandle<'a, BS, IO>;
+    type Rpc = UsbRpcHandle<BS, IO>;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
     }
+
+    fn reset(&mut self) {
+        self.wdr.trigger_reset();
+    }
+
     fn enter_bootloader(&mut self) {
         embassy_rp::rom_data::reset_to_usb_boot(0, 0);
     }
@@ -101,19 +106,12 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
     }
 
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
-        if enabled {
-            self.drivers[channel].enable.set_low()
-        } else {
-            self.drivers[channel].enable.set_high()
-        }
+        self.drivers[channel].dir.set_level(if enabled { Level::Low } else { Level::High });
+
     }
 
     fn set_direction(&mut self, channel: usize, invert: bool) {
-        if invert {
-            self.drivers[channel].dir.set_high()
-        } else {
-            self.drivers[channel].dir.set_low()
-        }
+        self.drivers[channel].dir.set_level(if invert { Level::High } else { Level::Low });
     }
 
     fn get_stopped(&mut self, channel: usize) -> bool {
@@ -226,12 +224,5 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
         input.wait_for_low().await;
         debug!("Endstop LOW detected for channel {}", i);
         Timer::after_secs(1).await; // Dead Time Insertion
-    }
-}
-
-impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
-where T: ControlLoopInvoke {
-    async fn invoke(&mut self, spawner: &mut Spawner) {
-        self.board_state.invoke(spawner).await
     }
 }
