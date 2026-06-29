@@ -1,5 +1,5 @@
 [package]
-name = "btt_skr_pico_v1_0"
+name = "board"
 version = "0.1.0"
 edition = "2021"
 
@@ -26,10 +26,10 @@ thermistor = { path = "../../core/thermistor" }
 
 [dependencies.controller]
 path = "../../core/controller"
-features = ["rp", "thumbv6m",
+features = ["rp", "thumbv6m", # No atomics on RP2040
     "driver-qty-4",
     "brownout-protection",
-    "tmc2209_uart_async", "uart_driver_shared_bus", "stallguard"
+    "tmc2209_async", "uart_driver_shared_bus", "stallguard"
 ]
 
 [profile.release]

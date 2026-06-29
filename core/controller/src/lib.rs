@@ -20,9 +20,7 @@ use embassy_time::{Duration, Instant, Timer};
 use heapless::Vec;
 use portable_atomic::AtomicU16;
 use sequencer::{Direction, WindowDressingInstruction, WindowDressingSequencer};
-#[cfg(feature = "stallguard")]
 use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
-#[cfg(feature = "stallguard")]
 use static_cell::StaticCell;
 
 pub const DRIVERS: usize = get_driver_count();
@@ -30,10 +28,7 @@ pub const DRIVERS: usize = get_driver_count();
 #[cfg(feature = "brownout-protection")]
 const BROWNOUT_PROTECTION: Duration = Duration::from_secs(2);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
-#[cfg(feature = "stallguard")]
 static STOPS: AtomicU16 = AtomicU16::new(0);
-#[allow(unused)]
-#[cfg(feature = "stallguard")]
 static SEQUENCERS: StaticCell<[Option<HaltingSequencer<1024>>; DRIVERS]> = StaticCell::new();
 
 const fn get_driver_count() -> usize {
@@ -71,13 +66,7 @@ impl<const N: usize> Default for RunState<N> {
 #[cfg(not(any(feature = "host-uart", feature = "host-usb")))]
 compile_error!("Please select a host communication protocol!");
 
-#[cfg(all(
-    any(
-        feature = "uart_configurable_driver",
-        feature = "uart_configurable_driver_async"
-    ),
-    feature = "stallguard",
-))]
+#[cfg(feature = "stallguard")]
 #[allow(unused)]
 pub async fn run<B, S, const N: usize>(mut spawner: Spawner, mut board: B)
 where
@@ -149,6 +138,7 @@ where
                         full_cycle_steps,
                         reverse,
                         full_tilt_steps,
+                        #[cfg(feature = "stallguard")]
                         sgthrs,
                     } => {
                         let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
@@ -165,15 +155,9 @@ where
                             REVERSALS.bit_clear(channel as u32, Ordering::Relaxed);
                         }
 
+                        #[cfg(feature = "stallguard")]
                         if let Some(sgthrs) = sgthrs {
-                            cfg_select! {
-                                feature = "uart_configurable_driver" => {
-                                    board.set_sg_threshold(channel, sgthrs);
-                                },
-                                feature = "uart_configurable_driver_async" => {
-                                    board.set_sg_threshold(channel, sgthrs).await;
-                                }
-                            }
+                            board.set_sg_threshold(channel, sgthrs).await;
                         }
 
                         seqs[channel as usize] = Some(seq);
@@ -194,6 +178,7 @@ where
                     IncomingRpcPacket::Get { channel } => {
                         request_pos |= 0b1 << channel;
                     }
+                    #[cfg(feature = "stallguard")]
                     IncomingRpcPacket::GetStallGuardResult { channel } => {
                         let sg_result = board.get_sg_result_halved(channel).await.unwrap_or(0);
                         let out = OutgoingRpcPacket::StallGuardResult { channel, sg_result };
@@ -231,6 +216,7 @@ where
         bulk_emit_state(&mut board, seqs, finished | stopped, true).await;
         bulk_emit_state(&mut board, seqs, request_pos & !(finished | stopped), false).await;
 
+        #[cfg(feature = "stallguard")]
         if option_env!("LOG_SG_RESULT").is_some() {
             let _ =
                 print_sg_result(
@@ -276,7 +262,6 @@ where
     defmt::debug!("SG_RESULT/2 = {}", sgresult2);
 }
 
-#[cfg(feature = "stallguard")]
 fn bulk_endstop_check<B, Q, const N: usize>(
     board: &mut B,
     seqs: &mut [Option<Q>; N],
@@ -315,7 +300,6 @@ where
     flagged
 }
 
-#[allow(unused)]
 fn bulk_push_pull_state<const N: usize, B, Q>(
     board: &mut B,
     seqs: &mut [Option<Q>; N],
@@ -401,7 +385,6 @@ where
     stopped
 }
 
-#[cfg(any(feature = "host-uart", feature = "host-usb"))]
 async fn bulk_emit_state<B, Q, const N: usize>(
     board: &mut B,
     seqs: &[Option<Q>; N],
@@ -439,7 +422,6 @@ async fn bulk_emit_state<B, Q, const N: usize>(
     }
 }
 
-#[cfg(any(feature = "host-uart", feature = "host-usb"))]
 async fn emit_absence<B>(board: &mut B, channel: u8)
 where
     B: ControllableBoard,

@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["thinkier"]
 
 [features]
-default = ["driver-qty-4"]
+default = ["rp", "driver-qty-4", "host-uart"]
 
 # Architecture configuration block
 thumbv6m = ["dep:critical-section", "portable-atomic/critical-section"]
@@ -16,11 +16,6 @@ rp = [
     "dep:pio-proc", "dep:pio", "dep:fixed", # No ACT timer like the STM chips, implemented in PIO
     "uart_soft_half_duplex" # No hardware readback prevention on UART
 ]
-stm32 = [
-    "dep:embassy-stm32",
-    "embassy-stm32/time-driver-tim2" # Choosing TIM2 as this shouldn't occupy any ACT-capable timers
-]
-_stm32g0b1re = ["dep:embassy-stm32", "embassy-stm32/stm32g0b1re"]
 
 # Communications block
 host-usb = ["dep:embassy-usb", "dep:circ_buffer"]
@@ -33,10 +28,8 @@ driver-qty-8 = []
 driver-qty-10 = []
 
 # Driver configuration block
-tmc2209_uart = ["dep:tmc2209", "uart_configurable_driver"]
-tmc2209_uart_async = ["dep:tmc2209-async", "uart_configurable_driver_async"]
-uart_configurable_driver = ["dep:embedded-io"]
-uart_configurable_driver_async = ["dep:embedded-io-async"]
+tmc2209_async = ["dep:tmc2209-async", "uart_configurable_driver"]
+uart_configurable_driver = ["dep:embedded-io-async"]
 stallguard = []
 uart_soft_half_duplex = [] # Subtle peripheral issues
 uart_driver_shared_bus = [] # Subtle differences in board design
@@ -59,19 +52,14 @@ pio-proc = { version = "0.3.0", optional = true }
 pio = { version = "0.3.0", optional = true }
 fixed = { version = "1", optional = true }
 
-# STMicroelectronics-specific deps
-embassy-stm32 = { version = "0.6.0", optional = true, features = ["defmt", "rt", "time", "exti"] }
-
 # TMC2209 driver-specific deps
 tmc2209-async = { git = "https://github.com/thinkier/tmc2209-rs", optional = true }
-tmc2209 = { version = "0.3", optional = true }
 
 # State management deps
 sequencer = { path = "../sequencer" }
 
 # RPC deps
 embassy-usb = { version = "0.6.0", optional = true, features = ["defmt"] }
-embedded-io = { version = "0.7", optional = true, features = ["defmt"] }
 embedded-io-async = { version = "0.7", optional = true, features = ["defmt"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-json-core = { version = "0.6", features = ["defmt"] }

@@ -1,27 +1,11 @@
 #[cfg(feature = "rp")]
 pub mod rp;
-#[cfg(feature = "stm32")]
-pub mod stm32;
-#[cfg(any(feature = "tmc2209_uart", feature = "tmc2209_uart_async"))]
+#[cfg(feature = "tmc2209_async")]
 pub mod tmc2209_uart;
-
-cfg_select! {
-    feature = "rp" => { use rp::Board; },
-    feature = "stm32" => { use stm32::Board; }
-    _ => {}
-}
 
 use crate::rpc::AsyncRpc;
 use embassy_executor::Spawner;
-cfg_select! {
-    feature = "uart_configurable_driver" => {
-        use embedded_io::{Read, Write};
-    }
-    feature = "uart_configurable_driver_async" => {
-        use embedded_io_async::{Read, Write};
-    }
-    _ => {}
-}
+use embedded_io_async::{Read, Write};
 
 #[macro_export]
 macro_rules! static_buffer {
@@ -60,10 +44,7 @@ pub trait ControlLoopInvoke {
     async fn invoke(&mut self, _spawner: &mut Spawner);
 }
 
-#[cfg(any(
-    feature = "uart_configurable_driver",
-    feature = "uart_configurable_driver_async"
-))]
+#[cfg(feature = "uart_configurable_driver")]
 pub trait ConfigurableStepStickHost<const N: usize> {
     type DriverSerial: Read + Write;
 
@@ -75,13 +56,7 @@ pub trait ConfigurableStepStickDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
 }
 
-#[cfg(all(
-    feature = "stallguard",
-    any(
-        feature = "uart_configurable_driver",
-        feature = "uart_configurable_driver_async"
-    )
-))]
+#[cfg(all(feature = "stallguard", feature = "uart_configurable_driver"))]
 #[allow(async_fn_in_trait)]
 pub trait StallGuard<S, const N: usize> {
     /// StallGuard Threshold, scaled back to 8 bits
@@ -114,15 +89,5 @@ where
         Timer::after_millis(50).await;
         let _ = self.flush();
         let _ = self.read_exact(&mut [0u8; N]);
-    }
-}
-
-#[cfg(any(feature = "rp", feature = "stm32"))]
-impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
-where
-    T: ControlLoopInvoke,
-{
-    async fn invoke(&mut self, spawner: &mut Spawner) {
-        self.board_state.invoke(spawner).await
     }
 }

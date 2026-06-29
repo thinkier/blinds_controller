@@ -142,7 +142,7 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
                 Input::new(p.PIN_16.reborrow(), Pull::Down),
             ],
         );
-        let driver = [
+        let drivers = [
             DriverPins {
                 enable: Output::new(p.PIN_12.reborrow(), Level::High),
                 // step: Output::new(p.PIN_11.reborrow(), Level::Low),
@@ -171,7 +171,7 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
         wdr.start(Duration::from_secs(2));
 
         Self {
-            drivers: driver,
+            drivers,
             driver_serial,
             host_rpc,
             wdr,

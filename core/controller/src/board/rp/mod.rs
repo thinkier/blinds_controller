@@ -1,5 +1,5 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableStepStickHost, ControllableBoard, StepStickHost};
+use crate::board::{ConfigurableStepStickHost, ControlLoopInvoke, ControllableBoard, StepStickHost};
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
@@ -191,7 +191,7 @@ impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
     }
 }
 
-#[cfg(feature = "uart_configurable_driver_async")]
+#[cfg(feature = "uart_configurable_driver")]
 impl<'a, const N: usize, D, H, T> ConfigurableStepStickHost<N> for Board<'a, N, D, H, T>
 where
     D: Read + Write,
@@ -224,5 +224,14 @@ async fn stop_detector(i: usize, mut input: Input<'static>) {
         input.wait_for_low().await;
         debug!("Endstop LOW detected for channel {}", i);
         Timer::after_secs(1).await; // Dead Time Insertion
+    }
+}
+
+impl<'a, const N: usize, D, H, T> ControlLoopInvoke for Board<'a, N, D, H, T>
+where
+    T: ControlLoopInvoke,
+{
+    async fn invoke(&mut self, spawner: &mut Spawner) {
+        self.board_state.invoke(spawner).await
     }
 }

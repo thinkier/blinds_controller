@@ -1,31 +1,14 @@
-use crate::board::{ConfigurableStepStickHost, ConfigurableStepStickDriver, StallGuard};
+use crate::board::{ConfigurableStepStickDriver, ConfigurableStepStickHost};
 use defmt::*;
-use embassy_time::Timer;
-
-cfg_select! {
-    feature = "uart_configurable_driver_async" => {
-        use embedded_io_async::{ErrorType, Read, Write};
-        use tmc2209_async::data::MicroStepResolution;
-        use tmc2209_async::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
-        use tmc2209_async::{await_read, send_read_request, send_write_request};
-    }
-    feature = "uart_configurable_driver" => {
-        use embedded_io::{ErrorType, Read, Write};
-        use tmc2209::data::MicroStepResolution;
-        use tmc2209::reg::{CHOPCONF, COOLCONF, GCONF, SGTHRS, SG_RESULT, SLAVECONF, TCOOLTHRS, TPWMTHRS};
-        use tmc2209::{await_read, send_read_request, send_write_request};
-    }
-}
-macro_rules! maybe_await {
-    ($e:expr) => {
-        cfg_select! {
-            feature = "uart_configurable_driver_async" => { $e.await }
-            _ => $e
-        }
-    }
-}
+use embedded_io_async::{ErrorType, Read, Write};
+use tmc2209_async::data::MicroStepResolution;
+use tmc2209_async::reg::{CHOPCONF, COOLCONF, GCONF, SLAVECONF, TCOOLTHRS, TPWMTHRS};
+#[cfg(feature = "stallguard")]
+use tmc2209_async::reg::{SGTHRS, SG_RESULT};
+use tmc2209_async::{ReadableRegister, WritableRegister};
 
 #[cfg(feature = "uart_soft_half_duplex")]
+#[allow(unused)]
 const DATAGRAM_SIZE_READ_REQ: usize = 4;
 #[cfg(feature = "uart_soft_half_duplex")]
 const DATAGRAM_SIZE_WRITE_REQ: usize = 8;
@@ -46,6 +29,7 @@ where
         let tpwmthrs = TPWMTHRS(0);
         let slaveconf = SLAVECONF(2 << 8); // Apply minimum SENDDELAY for a multi-driver system
         let coolconf = COOLCONF(0); // Disable CoolStep
+        #[cfg(feature = "stallguard")]
         let sgthrs = SGTHRS(100);
 
         for addr in 0..N as u8 {
@@ -53,39 +37,74 @@ where
             #[cfg(not(feature = "uart_driver_shared_bus"))]
             let addr = 0;
 
-            if let Err(e) = maybe_await!(send_write_request(addr, gconf, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, gconf, &mut *ser).await {
                 warn!("Failed to program GCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, chop, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, chop, &mut *ser).await {
                 warn!("Failed to program CHOPCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, tcoolthrs, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, tcoolthrs, &mut *ser).await {
                 warn!("Failed to program TCOOLTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, tpwmthrs, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, tpwmthrs, &mut *ser).await {
                 warn!("Failed to program TPWMTHRS on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, slaveconf, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, slaveconf, &mut *ser).await {
                 warn!("Failed to program SLAVECONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, coolconf, &mut *ser)) {
+            if let Err(e) = send_write_request_safe(addr, coolconf, &mut *ser).await {
                 warn!("Failed to program COOLCONF on addr {}: {:?}", addr, e);
             }
-            if let Err(e) = maybe_await!(send_write_request(addr, sgthrs, &mut *ser)) {
+            #[cfg(feature = "stallguard")]
+            if let Err(e) = send_write_request_safe(addr, sgthrs, &mut *ser).await {
                 warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
             }
-
-            #[cfg(feature = "uart_soft_half_duplex")]
-            for _ in 0..7 {
-                use crate::board::SoftHalfDuplex;
-                ser.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
-            }
-            Timer::after_millis(50).await;
         }
     }
 }
 
-impl<B, S, const N: usize> StallGuard<S, N> for B
+#[cfg(feature = "uart_soft_half_duplex")]
+#[allow(unused)]
+async fn send_read_request_safe<R, U>(
+    addr: u8,
+    mut tx: U,
+) -> Result<(), <U as ErrorType>::Error>
+where
+    R: ReadableRegister,
+    U: crate::board::SoftHalfDuplex + Write,
+{
+    tmc2209_async::send_read_request::<R, _>(addr, &mut tx).await?;
+
+    tx.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
+
+    Ok(())
+}
+
+#[cfg(feature = "uart_soft_half_duplex")]
+async fn send_write_request_safe<R, U>(
+    addr: u8,
+    reg: R,
+    mut tx: U,
+) -> Result<(), <U as ErrorType>::Error>
+where
+    R: WritableRegister,
+    U: crate::board::SoftHalfDuplex + Write,
+{
+    tmc2209_async::send_write_request(addr, reg, &mut tx).await?;
+
+    tx.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
+
+    Ok(())
+}
+
+#[cfg(not(feature = "uart_soft_half_duplex"))]
+#[allow(unused)]
+use tmc2209_async::{
+    send_read_request as send_read_request_safe, send_write_request as send_write_request_safe,
+};
+
+#[cfg(feature = "stallguard")]
+impl<B, S, const N: usize> crate::board::StallGuard<S, N> for B
 where
     B: ConfigurableStepStickHost<N, DriverSerial = S>,
     S: Read + Write,
@@ -97,13 +116,8 @@ where
         let addr = 0;
 
         let sgthrs = SGTHRS(sgthrs as u32);
-        if let Err(e) = maybe_await!(send_write_request(addr, sgthrs, &mut *serial)) {
+        if let Err(e) = send_write_request_safe(addr, sgthrs, &mut *serial).await {
             warn!("Failed to program SGTHRS on addr {}: {:?}", addr, e);
-        }
-        #[cfg(feature = "uart_soft_half_duplex")]
-        {
-            use crate::board::SoftHalfDuplex;
-            let _ = serial.flush_clear::<DATAGRAM_SIZE_WRITE_REQ>().await;
         }
     }
 
@@ -113,16 +127,11 @@ where
         #[cfg(not(feature = "uart_driver_shared_bus"))]
         let addr = 0;
 
-        if let Err(e) = maybe_await!(send_read_request::<SG_RESULT, _>(addr, &mut *serial)) {
+        if let Err(e) = send_read_request_safe::<SG_RESULT, _>(addr, &mut *serial).await {
             defmt::warn!("Failed to request SG_RESULT on addr {}: {:?}", addr, e);
             return None;
         }
-        #[cfg(feature = "uart_soft_half_duplex")]
-        {
-            use crate::board::SoftHalfDuplex;
-            let _ = serial.flush_clear::<DATAGRAM_SIZE_READ_REQ>().await;
-        }
-        match maybe_await!(await_read::<SG_RESULT, _>(serial)) {
+        match tmc2209_async::await_read::<SG_RESULT, _>(serial).await {
             Ok(sg_result) => Some((sg_result.get() / 2) as u8),
             Err(_) => {
                 defmt::warn!("Failed to read SG_RESULT on addr {}", addr);
