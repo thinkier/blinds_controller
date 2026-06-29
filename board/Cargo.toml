@@ -22,10 +22,10 @@ embassy-time = "0.5.1"
 
 # Readout for thermistor
 defmt = "1.1.0"
-thermistor = { path = "../../core/thermistor" }
+thermistor = { path = "../core/thermistor" }
 
 [dependencies.controller]
-path = "../../core/controller"
+path = "../core/controller"
 features = ["rp", "thumbv6m", # No atomics on RP2040
     "driver-qty-4",
     "brownout-protection",
