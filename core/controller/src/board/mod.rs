@@ -31,7 +31,7 @@ macro_rules! static_buffer {
     };
 }
 
-pub trait StepStickBoard {
+pub trait StepStickHost {
     fn get_enabled(&mut self, channel: usize) -> bool;
     fn set_enabled(&mut self, channel: usize, enabled: bool);
     fn set_direction(&mut self, channel: usize, invert: bool);
@@ -64,18 +64,24 @@ pub trait ControlLoopInvoke {
     feature = "uart_configurable_driver",
     feature = "uart_configurable_driver_async"
 ))]
-pub trait ConfigurableBoard<const N: usize> {
+pub trait ConfigurableStepStickHost<const N: usize> {
     type DriverSerial: Read + Write;
 
     fn driver_serial(&mut self, addr: u8) -> &mut Self::DriverSerial;
 }
 
 #[allow(async_fn_in_trait)]
-pub trait ConfigurableDriver<S, const N: usize> {
+pub trait ConfigurableStepStickDriver<S, const N: usize> {
     async fn configure_driver(&mut self);
 }
 
-#[cfg(feature = "stallguard")]
+#[cfg(all(
+    feature = "stallguard",
+    any(
+        feature = "uart_configurable_driver",
+        feature = "uart_configurable_driver_async"
+    )
+))]
 #[allow(async_fn_in_trait)]
 pub trait StallGuard<S, const N: usize> {
     /// StallGuard Threshold, scaled back to 8 bits

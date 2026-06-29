@@ -1,4 +1,4 @@
-use crate::board::{ConfigurableBoard, ConfigurableDriver, StallGuard};
+use crate::board::{ConfigurableStepStickHost, ConfigurableStepStickDriver, StallGuard};
 use defmt::*;
 use embassy_time::Timer;
 
@@ -30,9 +30,9 @@ const DATAGRAM_SIZE_READ_REQ: usize = 4;
 #[cfg(feature = "uart_soft_half_duplex")]
 const DATAGRAM_SIZE_WRITE_REQ: usize = 8;
 
-impl<B, S, const N: usize> ConfigurableDriver<S, N> for B
+impl<B, S, const N: usize> ConfigurableStepStickDriver<S, N> for B
 where
-    B: ConfigurableBoard<N, DriverSerial = S>,
+    B: ConfigurableStepStickHost<N, DriverSerial = S>,
     S: Read + Write,
     <S as ErrorType>::Error: Format,
 {
@@ -87,7 +87,7 @@ where
 
 impl<B, S, const N: usize> StallGuard<S, N> for B
 where
-    B: ConfigurableBoard<N, DriverSerial = S>,
+    B: ConfigurableStepStickHost<N, DriverSerial = S>,
     S: Read + Write,
     <S as ErrorType>::Error: Format,
 {

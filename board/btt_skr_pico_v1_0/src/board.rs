@@ -4,7 +4,7 @@ use controller::board::ControlLoopInvoke;
 #[cfg(feature = "host-uart")]
 use controller::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
-use controller::rpc::{UsbCdcAcmStream, UsbRpcHandle};
+use controller::rpc::UsbRpcHandle;
 use controller::static_buffer;
 use defmt::{debug, error};
 use embassy_executor::Spawner;
@@ -36,7 +36,9 @@ bind_interrupts!(struct Irqs {
 
 static_buffer!(DRIVER_BUFFER_TX: 128);
 static_buffer!(DRIVER_BUFFER_RX: 512);
+#[cfg(feature = "host-uart")]
 static_buffer!(HOST_BUFFER_TX: 1024);
+#[cfg(feature = "host-uart")]
 static_buffer!(HOST_BUFFER_RX: 2048);
 
 static PERIPHERALS: StaticCell<Peripherals> = StaticCell::new();
@@ -50,7 +52,7 @@ pub trait BoardInitialize {
 #[cfg(feature = "host-uart")]
 pub type HD = SerialRpcHandle<512, BufferedUart>;
 #[cfg(feature = "host-usb")]
-pub type HD = UsbRpcHandle<'static, 512, Driver<'static, USB>>;
+pub type HD = UsbRpcHandle<2048, Driver<'static, USB>>;
 
 pub struct BttSkrPicoV1_0 {
     thermistor: NtcThermistor,
@@ -125,9 +127,10 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
         #[cfg(feature = "host-usb")]
         let host_rpc = {
             let usb_driver = Driver::new(p.USB.reborrow(), Irqs);
-            let (usb_device, host_rpc) = UsbCdcAcmStream::init(usb_driver);
+            let (usb_device, host_rpc) = UsbRpcHandle::new(usb_driver);
             let _ = spawner.spawn(usb_task(usb_device).unwrap());
-            UsbRpcHandle::new(host_rpc)
+
+            host_rpc
         };
 
         bind_endstops(
@@ -195,9 +198,7 @@ impl ControlLoopInvoke for BttSkrPicoV1_0 {
 impl BttSkrPicoV1_0 {
     fn read_thermistor_voltage(&mut self) -> u16 {
         match self.adc.blocking_read(&mut self.thermistor_pin) {
-            Ok(thermistor) => {
-                thermistor
-            },
+            Ok(thermistor) => thermistor,
             Err(e) => {
                 error!("Failed to read thermistor: {}", e);
                 1

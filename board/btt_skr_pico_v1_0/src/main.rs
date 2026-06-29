@@ -5,7 +5,7 @@ mod board;
 
 use crate::board::BoardInitialize;
 use controller::board::rp::Board;
-use controller::board::ConfigurableDriver;
+use controller::board::ConfigurableStepStickDriver;
 use embassy_executor::Spawner;
 use {defmt_rtt as _, panic_probe as _};
 

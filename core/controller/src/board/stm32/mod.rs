@@ -1,6 +1,6 @@
 pub mod bitbanged_uart;
 
-use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
+use crate::board::{ConfigurableStepStickHost, ControllableBoard, StepStickHost};
 #[cfg(feature = "host-usb")]
 use crate::rpc::UsbRpcHandle;
 use crate::{DRIVERS, STOPS};
@@ -53,7 +53,7 @@ where
     }
 }
 
-impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
+impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
     fn get_enabled(&mut self, channel: usize) -> bool {
         self.drivers[channel].enable.is_set_low()
     }
@@ -84,7 +84,7 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
 }
 
 #[cfg(feature = "uart_configurable_driver")]
-impl<'a, const N: usize, D, H, T> ConfigurableBoard<N> for Board<'a, N, [D; N], H, T>
+impl<'a, const N: usize, D, H, T> ConfigurableStepStickHost<N> for Board<'a, N, [D; N], H, T>
 where
     D: Read + Write,
 {

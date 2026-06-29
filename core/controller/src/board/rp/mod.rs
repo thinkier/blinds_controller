@@ -1,5 +1,5 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableBoard, ControllableBoard, StepStickBoard};
+use crate::board::{ConfigurableStepStickHost, ControllableBoard, StepStickHost};
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
@@ -13,7 +13,7 @@ use embassy_rp::peripherals::PIO0;
 #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
 use embassy_rp::watchdog::Watchdog;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Timer};
 #[cfg(feature = "host-usb")]
 use embassy_usb::driver::Driver;
 #[cfg(feature = "host-uart")]
@@ -75,17 +75,17 @@ where
     fn watchdog_feed(&mut self) {
         // According to https://arduino-pico.readthedocs.io/en/latest/rp2040.html
         // The maximum value is 8.3 seconds.  Any higher values will be truncated by the hardware.
-        self.wdr.feed(Duration::from_secs(2))
+        self.wdr.feed(embassy_time::Duration::from_secs(2))
     }
 }
 
 #[cfg(feature = "host-usb")]
-impl<'a, const N: usize, const BS: usize, D, IO, T> ControllableBoard
-    for Board<'a, N, D, UsbRpcHandle<BS, IO>, T>
+impl<const N: usize, const BS: usize, D, HD, T> ControllableBoard
+    for Board<'static, N, D, UsbRpcHandle<BS, HD>, T>
 where
-    IO: Driver<'a>,
+    HD: Driver<'static>,
 {
-    type Rpc = UsbRpcHandle<BS, IO>;
+    type Rpc = UsbRpcHandle<BS, HD>;
 
     fn get_host_rpc(&mut self) -> &mut Self::Rpc {
         &mut self.host_rpc
@@ -100,7 +100,7 @@ where
     }
 }
 
-impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
+impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
     fn get_enabled(&mut self, channel: usize) -> bool {
         self.drivers[channel].enable.is_set_low()
     }
@@ -192,7 +192,7 @@ impl<'a, const N: usize, D, H, T> StepStickBoard for Board<'a, N, D, H, T> {
 }
 
 #[cfg(feature = "uart_configurable_driver_async")]
-impl<'a, const N: usize, D, H, T> ConfigurableBoard<N> for Board<'a, N, D, H, T>
+impl<'a, const N: usize, D, H, T> ConfigurableStepStickHost<N> for Board<'a, N, D, H, T>
 where
     D: Read + Write,
 {

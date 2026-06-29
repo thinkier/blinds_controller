@@ -68,8 +68,10 @@ impl<const N: usize> Default for RunState<N> {
     }
 }
 
+#[cfg(not(any(feature = "host-uart", feature = "host-usb")))]
+compile_error!("Please select a host communication protocol!");
+
 #[cfg(all(
-    any(feature = "host-uart", feature = "host-usb"),
     any(
         feature = "uart_configurable_driver",
         feature = "uart_configurable_driver_async"
@@ -79,9 +81,9 @@ impl<const N: usize> Default for RunState<N> {
 #[allow(unused)]
 pub async fn run<B, S, const N: usize>(mut spawner: Spawner, mut board: B)
 where
-    B: StepStickBoard
+    B: StepStickHost
         + ControllableBoard
-        + ConfigurableBoard<N>
+        + ConfigurableStepStickHost<N>
         + StallGuard<S, N>
         + ControlLoopInvoke,
 {
@@ -251,7 +253,7 @@ where
 #[cfg(feature = "stallguard")]
 async fn print_sg_result<B, S, const N: usize>(board: &mut B, channels: u16)
 where
-    B: StepStickBoard + StallGuard<S, N>,
+    B: StepStickHost + StallGuard<S, N>,
 {
     let mut sgresult2 = [None; N];
 
@@ -281,7 +283,7 @@ fn bulk_endstop_check<B, Q, const N: usize>(
     state: &mut RunState<N>,
 ) -> u16
 where
-    B: StepStickBoard,
+    B: StepStickHost,
     Q: SensingWindowDressingSequencer,
 {
     let mut flagged = 0u16;
@@ -313,13 +315,14 @@ where
     flagged
 }
 
+#[allow(unused)]
 fn bulk_push_pull_state<const N: usize, B, Q>(
     board: &mut B,
     seqs: &mut [Option<Q>; N],
     state: &mut RunState<N>,
 ) -> u16
 where
-    B: StepStickBoard,
+    B: StepStickHost,
     Q: WindowDressingSequencer,
 {
     let mut stopped = 0u16;
