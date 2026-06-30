@@ -3,7 +3,7 @@ target = "thumbv6m-none-eabi"
 
 [target.thumbv6m-none-eabi]
 runner = [
-     "./remote-run.sh",
+    "./.cargo/run-harness.sh",
     # "probe-rs", "run", "--chip", "RP2040"
     # "elf2uf2-rs", "-d",
 ]
@@ -18,4 +18,4 @@ rustflags = [
 ]
 
 [env]
-DEFMT_LOG = "info"
+DEFMT_LOG = "debug"
