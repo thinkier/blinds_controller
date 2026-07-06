@@ -19,6 +19,7 @@ pub struct CountedSqrWavProgram<'a, PIO: Instance> {
 
 impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
+        // Code was evaluated on https://ice458.github.io/tools/pio_sim/index.html
         let prg = pio::pio_asm!(
         ".wrap_target"
 
