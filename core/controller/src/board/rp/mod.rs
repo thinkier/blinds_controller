@@ -1,10 +1,12 @@
 use crate::board::rp::utils::counted_sqr_wav_pio::CountedSqrWav;
-use crate::board::{ConfigurableStepStickHost, ControlLoopInvoke, ControllableBoard, StepStickHost};
+use crate::board::{
+    ConfigurableStepStickHost, ControlLoopInvoke, ControllableBoard, StepStickHost,
+};
 #[cfg(feature = "host-uart")]
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
 use crate::rpc::UsbRpcHandle;
-use crate::{DRIVERS, STOPS};
+use crate::{DRIVERS, FREQUENCY, STOPS};
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
@@ -13,7 +15,7 @@ use embassy_rp::peripherals::PIO0;
 #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
 use embassy_rp::peripherals::PIO1;
 use embassy_rp::watchdog::Watchdog;
-use embassy_time::{Timer};
+use embassy_time::Timer;
 #[cfg(feature = "host-usb")]
 use embassy_usb::driver::Driver;
 #[cfg(feature = "host-uart")]
@@ -106,12 +108,15 @@ impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
     }
 
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
-        self.drivers[channel].dir.set_level(if enabled { Level::Low } else { Level::High });
-
+        self.drivers[channel]
+            .dir
+            .set_level(if enabled { Level::Low } else { Level::High });
     }
 
     fn set_direction(&mut self, channel: usize, invert: bool) {
-        self.drivers[channel].dir.set_level(if invert { Level::High } else { Level::Low });
+        self.drivers[channel]
+            .dir
+            .set_level(if invert { Level::High } else { Level::Low });
     }
 
     fn get_stopped(&mut self, channel: usize) -> bool {
@@ -150,11 +155,16 @@ impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
         }
     }
 
-    fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool> {
+    fn add_steps(&mut self, channel: usize, steps: u16) -> Option<bool> {
+        self.add_steps_ramping(channel, steps, FREQUENCY)
+    }
+
+    fn add_steps_ramping(&mut self, channel: usize, steps: u16, _freq: u16) -> Option<bool> {
         if steps == 0 {
             return None;
         }
 
+        // TODO haven't used the ramper yet
         match channel {
             0 => self.pio0_0.as_mut().map(|p| p.try_push(steps)),
             1 => self.pio0_1.as_mut().map(|p| p.try_push(steps)),

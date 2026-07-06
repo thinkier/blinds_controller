@@ -347,7 +347,11 @@ where
             }
 
             if instr.quality == state.cur_direction[i] {
-                board.add_steps(i, instr.quantity);
+                // Downcast is safe unless it takes 6e6 steps to open the blinds fully
+                // - 15 minutes at 1kHz steps
+                //
+                // Then I think you got bigger problems than this software
+                board.add_steps(i, instr.quantity as u16); // TODO Insertion failures not handled
             } else if board.get_stopped(i) && state.next_resume[i] < now {
                 state.cur_direction[i] = instr.quality;
 
@@ -371,7 +375,7 @@ where
                         board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0)
                     }
                 }
-                board.add_steps(i, instr.quantity);
+                board.add_steps(i, instr.quantity as u16); // TODO Insertion failures not handled
             } else {
                 let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             }

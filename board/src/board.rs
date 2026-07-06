@@ -10,6 +10,8 @@ use defmt::{debug, error};
 use embassy_executor::Spawner;
 use embassy_rp::adc::{self, Adc};
 use embassy_rp::bind_interrupts;
+use embassy_rp::clocks::ClockConfig;
+use embassy_rp::config::Config as McuConfig;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, UART0, UART1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
@@ -62,7 +64,11 @@ pub struct BttSkrPicoV1_0 {
 
 impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
     fn init(spawner: Spawner) -> Self {
-        let p = PERIPHERALS.init(embassy_rp::init(Default::default()));
+        // Explicitly set to 120MHz so the clock division for PIO works correctly
+        let mut config = McuConfig::default();
+        config.clocks = ClockConfig::system_freq(120_000_000).unwrap();
+
+        let p = PERIPHERALS.init(embassy_rp::init(config));
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
 

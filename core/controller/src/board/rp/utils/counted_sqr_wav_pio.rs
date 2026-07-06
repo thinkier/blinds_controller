@@ -4,13 +4,13 @@ use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin
 use embassy_rp::Peri;
 use fixed::traits::ToFixed;
 
-/// This program is intended to run on a 10:1 ratio i.e. 10 PIO cycles per output cycle
+/// This program is intended to run on a 24:1 ratio i.e. 24 PIO cycles per output cycle
 ///
 /// $$
 ///     \text{Output Frequency} = \frac{
 ///         \text{System Frequency}
 ///     }{
-///         \text{Divider} \times 10
+///         \text{Divider} \times 24
 ///     }
 /// $$
 pub struct CountedSqrWavProgram<'a, PIO: Instance> {
@@ -20,23 +20,31 @@ pub struct CountedSqrWavProgram<'a, PIO: Instance> {
 impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
         let prg = pio::pio_asm!(
-            ".side_set 1 opt"
-            ".wrap_target"
+        ".wrap_target"
 
             "reset:"
-                "pull block" // Pull an updated counter from TX FIFO into osr
-                "mov x, osr side 0" // Move osr value into x register, also beginning of the falling edge
-                "jmp enter" // Jump into the main loop without the extra waiting introduced to sync up the reset
+                "pull block"
+                "set pins 1 [8]" // Fixed bug where it outputs 1 less step than provided
+                "out x, 16" // 16 MSB for delays, 16 LSB for steps, zero steps is invalid
+                "jmp enter" // Reset + enter = 13 as reset acts as a pull-high now
 
-            "pull_low:"
-                "jmp enter [1] side 0"
-            "enter:" // Reset + Enter is 6 cycles whereas Pull-Low + Enter is 5 cycles
-                "jmp x-- pull_high [2]" // Entry to the loop, decrement x. jmp is the only instruction that's capable of updating the counter
+            "pull_high:" // Totals 12
+                "set pins 1"
+                "nop [9]"
+            "enter:"
+                "jmp x-- pull_low"
 
-            "pull_high:" // Normatively 5 cycles, resetting is 4 cycles
-                "jmp !x reset [3] side 1" // Write hi to the pin, if x is zero, jump to reset
-                "jmp pull_low" // Continue the loop
-            ".wrap"
+            "pull_low:" // Totals 12 in all code paths except when jumping to reset, then it's 11
+                "set pins 0 [7]"
+                // Dead time insertion
+                "mov y, osr"
+                "stall:"
+                    "jmp y-- stall"
+
+                // do ... x-- ... while x > 0
+                "jmp !x reset"
+                "jmp pull_high"
+        ".wrap"
         );
 
         let prg = common.load_program(&prg.program);
@@ -63,7 +71,7 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
 
         let mut cfg = Config::default();
         cfg.use_program(&program.prg, &[&pin]);
-        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 10)).to_fixed();
+        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 24)).to_fixed();
 
         sm.set_config(&cfg);
 
@@ -84,8 +92,37 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
         self.sm.tx().empty()
     }
 
-    pub fn try_push(&mut self, count: u32) -> bool {
+    pub fn try_push(&mut self, count: u16) -> bool {
         self.sm.set_enable(true);
-        self.sm.tx().try_push(count)
+        self.sm.tx().try_push(count as u32)
+    }
+
+    /// `delay_cycles` is the number of PIO cycles to stall the state machine in each phase.
+    ///
+    /// $$
+    /// f = \frac{24}{24 + delay_cycles} \times 1000
+    /// $$
+    ///
+    /// Example values:
+    /// | Frequency | `delay_cycles` |
+    /// |-----------|----------------|
+    /// | 1000 Hz   | 0              |
+    /// |  800 Hz   | 6              |
+    /// |  750 Hz   | 8              |
+    /// |  667 Hz   | 12             |
+    /// |  600 Hz   | 16             |
+    /// |  500 Hz   | 24             |
+    /// |  400 Hz   | 36             |
+    /// |  333 Hz   | 48             |
+    /// |  250 Hz   | 72             |
+    /// |  200 Hz   | 96             |
+    /// |  125 Hz   | 168            |
+    /// |  100 Hz   | 216            |
+    /// |   50 Hz   | 456            |
+    pub fn try_push_modulated(&mut self, count: u16, delay_cycles: u16) -> bool {
+        self.sm.set_enable(true);
+        self.sm
+            .tx()
+            .try_push(((delay_cycles as u32) << 16) | (count as u32))
     }
 }
