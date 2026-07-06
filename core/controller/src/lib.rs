@@ -349,8 +349,7 @@ where
             if instr.quality == state.cur_direction[i] {
                 // Downcast is safe unless it takes 6e6 steps to open the blinds fully
                 // - 15 minutes at 1kHz steps
-                //
-                // Then I think you got bigger problems than this software
+                // - It is also further clamped by [`get_next_instruction_grouped(LIMIT)`]
                 board.add_steps(i, instr.quantity as u16); // TODO Insertion failures not handled
             } else if board.get_stopped(i) && state.next_resume[i] < now {
                 state.cur_direction[i] = instr.quality;
@@ -375,7 +374,8 @@ where
                         board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0)
                     }
                 }
-                board.add_steps(i, instr.quantity as u16); // TODO Insertion failures not handled
+                // Pick up the moving the next cycle
+                let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             } else {
                 let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             }
