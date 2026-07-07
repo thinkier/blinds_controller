@@ -1,0 +1,27 @@
+.program counted_sqr_wav
+
+.wrap_target
+
+reset:
+	pull block
+    set pins 1 [8]
+	out x, 16               ; 16 MSB for delays, 16 LSB for steps, zero steps is invalid
+	jmp enter               ; Reset + enter = 13, reset acts as a pull-high
+
+pull_high:                  ; Totals 12
+    set pins 1
+	nop [9]
+enter:
+	jmp x-- pull_low
+
+pull_low:                   ; Totals 12 in all code paths except when jumping to reset, then it's 11
+    set pins 0 [7]
+
+	mov y, osr              ; Inserts dead time according to the 16 MSB
+    stall:
+        jmp y-- stall
+
+	jmp !x reset
+	jmp pull_high
+
+.wrap                       ; Semantics of do ... x-- ... while x

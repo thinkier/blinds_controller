@@ -3,6 +3,7 @@ use embassy_rp::gpio::Level;
 use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
 use embassy_rp::Peri;
 use fixed::traits::ToFixed;
+use pio::pio_file;
 
 /// This program is intended to run on a 24:1 ratio i.e. 24 PIO cycles per output cycle
 ///
@@ -20,33 +21,7 @@ pub struct CountedSqrWavProgram<'a, PIO: Instance> {
 impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
         // Code was evaluated on https://ice458.github.io/tools/pio_sim/index.html
-        let prg = pio::pio_asm!(
-        ".wrap_target"
-
-            "reset:"
-                "pull block"
-                "set pins 1 [8]" // Fixed bug where it outputs 1 less step than provided
-                "out x, 16" // 16 MSB for delays, 16 LSB for steps, zero steps is invalid
-                "jmp enter" // Reset + enter = 13 as reset acts as a pull-high now
-
-            "pull_high:" // Totals 12
-                "set pins 1"
-                "nop [9]"
-            "enter:"
-                "jmp x-- pull_low"
-
-            "pull_low:" // Totals 12 in all code paths except when jumping to reset, then it's 11
-                "set pins 0 [7]"
-                // Dead time insertion
-                "mov y, osr"
-                "stall:"
-                    "jmp y-- stall"
-
-                // do ... x-- ... while x > 0
-                "jmp !x reset"
-                "jmp pull_high"
-        ".wrap"
-        );
+        let prg = pio_file!("src/board/rp/utils/counted_sqr_wav.pio");
 
         let prg = common.load_program(&prg.program);
 
