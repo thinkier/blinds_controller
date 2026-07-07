@@ -1,7 +1,5 @@
 .program counted_sqr_wav
 
-.wrap_target
-
 reset:
 	pull block
     set pins 1 [8]
@@ -23,5 +21,3 @@ pull_low:                   ; Totals 12 in all code paths except when jumping to
 
 	jmp !x reset
 	jmp pull_high
-
-.wrap                       ; Semantics of do ... x-- ... while x
