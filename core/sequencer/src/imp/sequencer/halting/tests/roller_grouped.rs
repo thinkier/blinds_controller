@@ -1,4 +1,4 @@
-use crate::model::sequencer::{WindowDressingInstruction, WindowDressingState};
+use crate::model::sequencer::{HaltingWindowDressingInstruction, WindowDressingState};
 use crate::{Direction, WindowDressingSequencer};
 type HaltingSequencer = crate::model::sequencer::HaltingSequencer<1024>;
 
@@ -10,8 +10,8 @@ fn close_grouped() {
 
     assert_eq!(
         seq.get_next_instruction_grouped(u32::MAX),
-        Some(WindowDressingInstruction {
-            quality: Direction::Extend,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Extend,
             quantity: 100_000,
             completed_state: WindowDressingState {
                 position: 0,
@@ -22,8 +22,8 @@ fn close_grouped() {
 
     assert_eq!(
         seq.get_next_instruction_grouped(u32::MAX),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,

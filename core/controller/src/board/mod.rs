@@ -21,7 +21,6 @@ pub trait StepStickHost {
     fn set_direction(&mut self, channel: usize, invert: bool);
     fn get_stopped(&mut self, channel: usize) -> bool;
     fn get_ready_for_steps(&mut self, channel: usize) -> bool;
-    fn add_steps(&mut self, channel: usize, steps: u16) -> Option<bool>;
     fn add_steps_ramping(&mut self, channel: usize, steps: u16, freq: u16) -> Option<bool>;
     fn clear_steps(&mut self, channel: usize);
 }

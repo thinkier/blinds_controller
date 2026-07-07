@@ -24,12 +24,14 @@ pub struct HaltingSequencer<const N: usize> {
     pub(crate) full_tilt_quantity: Option<u32>,
     pub(crate) desired_state: WindowDressingState,
     pub(crate) current_state: WindowDressingState,
-    pub(crate) instructions: Deque<WindowDressingInstruction, N>,
+    pub(crate) instructions: Deque<HaltingWindowDressingInstruction, N>,
 }
 
 pub trait WindowDressingSequencer {
-    fn get_next_instruction(&mut self) -> Option<WindowDressingInstruction>;
-    fn get_next_instruction_grouped(&mut self, threshold: u32) -> Option<WindowDressingInstruction>;
+    type Instruction: WindowDressingInstruction;
+
+    fn get_next_instruction(&mut self) -> Option<Self::Instruction>;
+    fn get_next_instruction_grouped(&mut self, threshold: u32) -> Option<Self::Instruction>;
     fn get_current_state(&self) -> &WindowDressingState;
     fn get_desired_state(&self) -> &WindowDressingState;
     fn load_state(&mut self, state: &WindowDressingState);
@@ -44,9 +46,15 @@ pub trait SensingWindowDressingSequencer: WindowDressingSequencer {
     fn home_fully_closed(&mut self);
 }
 
+pub trait WindowDressingInstruction {
+    fn get_direction(&self) -> &Direction;
+    fn get_quantity(&self) -> &u32;
+    fn get_quantity_mut(&mut self) -> &mut u32;
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
-pub struct WindowDressingInstruction {
-    pub quality: Direction,
+pub struct HaltingWindowDressingInstruction {
+    pub direction: Direction,
     pub quantity: u32,
     pub(crate) completed_state: WindowDressingState,
 }
@@ -60,6 +68,11 @@ pub struct WindowDressingState {
 #[cfg(feature = "defmt")]
 impl defmt::Format for WindowDressingState {
     fn format(&self, fmt: defmt::Formatter) {
-        defmt::write!(fmt, "{{ position: {}, tilt: {} }}", self.position, self.tilt)
+        defmt::write!(
+            fmt,
+            "{{ position: {}, tilt: {} }}",
+            self.position,
+            self.tilt
+        )
     }
 }

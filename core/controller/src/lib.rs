@@ -19,7 +19,9 @@ use embassy_time::{Duration, Instant, Timer};
 #[cfg(any(feature = "host-uart", feature = "host-usb"))]
 use heapless::Vec;
 use portable_atomic::AtomicU16;
-use sequencer::{Direction, WindowDressingInstruction, WindowDressingSequencer};
+use sequencer::{
+    Direction, Ramping, RampingInstruction, WindowDressingInstruction, WindowDressingSequencer,
+};
 use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
 use static_cell::StaticCell;
 
@@ -29,7 +31,8 @@ pub const DRIVERS: usize = get_driver_count();
 const BROWNOUT_PROTECTION: Duration = Duration::from_secs(2);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 static STOPS: AtomicU16 = AtomicU16::new(0);
-static SEQUENCERS: StaticCell<[Option<HaltingSequencer<1024>>; DRIVERS]> = StaticCell::new();
+static SEQUENCERS: StaticCell<[Option<Ramping<HaltingSequencer<1024>>>; DRIVERS]> =
+    StaticCell::new();
 
 const fn get_driver_count() -> usize {
     cfg_select! {
@@ -42,23 +45,27 @@ const fn get_driver_count() -> usize {
 }
 
 pub const FREQUENCY: u16 = 1000;
+pub const RAMP_EXPONENT: u16 = 3;
+pub const RAMP_STEPS_EXPONENT: u16 = 6;
 
-struct RunState<const N: usize> {
+struct RunState<const N: usize, I> {
     #[cfg(feature = "brownout-protection")]
     brownout_protection: Instant,
-    next_buf: [Option<WindowDressingInstruction>; N],
+    next_buf: [Option<I>; N],
     next_resume: [Instant; N],
     cur_direction: [Direction; N],
+    ramp_exponent: [u16; N],
 }
 
-impl<const N: usize> Default for RunState<N> {
+impl<const N: usize, I> Default for RunState<N, I> {
     fn default() -> Self {
         RunState {
             #[cfg(feature = "brownout-protection")]
             brownout_protection: Instant::MIN,
-            next_buf: [None; N],
+            next_buf: [const { None }; N],
             next_resume: [Instant::now(); N],
             cur_direction: [Direction::Hold; N],
+            ramp_exponent: [0; N],
         }
     }
 }
@@ -86,7 +93,7 @@ where
             feature = "driver-qty-10" => 10,
         }],
     );
-    let mut state = RunState::<DRIVERS>::default();
+    let mut state = RunState::<DRIVERS, RampingInstruction>::default();
 
     loop {
         board.watchdog_feed();
@@ -141,7 +148,8 @@ where
                         #[cfg(feature = "stallguard")]
                         sgthrs,
                     } => {
-                        let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
+                        let seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
+                        let mut seq = Ramping::new(seq, RAMP_EXPONENT, RAMP_STEPS_EXPONENT);
 
                         if let Some(init) = init {
                             seq.load_state(&init);
@@ -265,7 +273,7 @@ where
 fn bulk_endstop_check<B, Q, const N: usize>(
     board: &mut B,
     seqs: &mut [Option<Q>; N],
-    state: &mut RunState<N>,
+    state: &mut RunState<N, Q::Instruction>,
 ) -> u16
 where
     B: StepStickHost,
@@ -303,7 +311,7 @@ where
 fn bulk_push_pull_state<const N: usize, B, Q>(
     board: &mut B,
     seqs: &mut [Option<Q>; N],
-    state: &mut RunState<N>,
+    state: &mut RunState<N, Q::Instruction>,
 ) -> u16
 where
     B: StepStickHost,
@@ -346,20 +354,26 @@ where
                 }
             }
 
-            if instr.quality == state.cur_direction[i] {
+            if *instr.get_direction() == state.cur_direction[i] {
                 // Downcast is safe unless it takes 6e6 steps to open the blinds fully
                 // - 15 minutes at 1kHz steps
                 // - It is also further clamped by [`get_next_instruction_grouped(LIMIT)`]
-                board.add_steps(i, instr.quantity as u16); // TODO Insertion failures not handled
+                let success = board
+                    .add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY)
+                    .unwrap_or(false);
+
+                if !success {
+                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
+                }
             } else if board.get_stopped(i) && state.next_resume[i] < now {
-                state.cur_direction[i] = instr.quality;
+                state.cur_direction[i] = *instr.get_direction();
 
                 stopped |= 1 << i;
 
-                match instr.quality {
+                match instr.get_direction() {
                     Direction::Hold => {
                         let offset = Duration::from_micros(
-                            (instr.quantity as u64 * 1_000_000) / FREQUENCY as u64,
+                            (*instr.get_direction() as u64 * 1_000_000) / FREQUENCY as u64,
                         );
                         state.next_resume[i] = now + offset;
 
@@ -374,6 +388,7 @@ where
                         board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0)
                     }
                 }
+                state.ramp_exponent[i] = RAMP_EXPONENT;
                 // Pick up the moving the next cycle
                 let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             } else {

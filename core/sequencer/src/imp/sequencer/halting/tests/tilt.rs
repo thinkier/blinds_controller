@@ -1,4 +1,4 @@
-use crate::model::sequencer::{WindowDressingInstruction, WindowDressingState};
+use crate::model::sequencer::{HaltingWindowDressingInstruction, WindowDressingState};
 use crate::{Direction, SensingWindowDressingSequencer, WindowDressingSequencer};
 type HaltingSequencer = crate::model::sequencer::HaltingSequencer<1024>;
 
@@ -36,8 +36,8 @@ fn close_full() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 0,
@@ -48,8 +48,8 @@ fn close_full() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -68,8 +68,8 @@ fn open_full() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 0,
@@ -80,8 +80,8 @@ fn open_full() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -109,8 +109,8 @@ fn close_trig_endstop() {
     );
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -138,8 +138,8 @@ fn open_trig_endstop() {
     );
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,

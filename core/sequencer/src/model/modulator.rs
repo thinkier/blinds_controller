@@ -1,17 +1,19 @@
-use crate::{WindowDressingInstruction, WindowDressingSequencer};
-use core::time::Duration;
+use crate::{Direction, WindowDressingSequencer};
+use serde::{Deserialize, Serialize};
 
-pub struct FixedFrequencyStepperModulator<S: WindowDressingSequencer> {
-    pub(crate) period: Duration,
-    pub(crate) sequencer: S,
-    pub(crate) cur_instruction: Option<WindowDressingInstruction>,
+#[derive(Debug)]
+pub struct Ramping<T: WindowDressingSequencer> {
+    pub(crate) inner: T,
+    pub(crate) buffer: Option<T::Instruction>,
+    pub(crate) last_direction: Direction,
+    pub(crate) last_count: u16,
+    pub(crate) ramp_exponent: u16,
+    pub(crate) ramp_steps_exponent: u16,
 }
 
-// pub struct LinearRampingModulator<S: WindowDressingSequencer> {
-//     pub(crate) main_period: Duration,
-//     pub(crate) base_period: Duration,
-//     pub(crate) ramping_duration: Duration,
-//     pub(crate) sequencer: S,
-//     pub(crate) cur_instruction: Option<WindowDressingInstruction>,
-//     pub(crate) next_instruction: Option<WindowDressingInstruction>,
-// }
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+pub struct RampingInstruction {
+    pub direction: Direction,
+    pub quantity: u32,
+    pub ramping_denominator_exponent: u16,
+}

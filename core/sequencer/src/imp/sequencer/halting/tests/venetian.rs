@@ -1,4 +1,4 @@
-use crate::model::sequencer::{WindowDressingInstruction, WindowDressingState};
+use crate::model::sequencer::{HaltingWindowDressingInstruction, WindowDressingState};
 use crate::{Direction, SensingWindowDressingSequencer, WindowDressingSequencer};
 type HaltingSequencer = crate::model::sequencer::HaltingSequencer<1024>;
 
@@ -12,8 +12,8 @@ fn open_full_sequence() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 0,
@@ -26,8 +26,8 @@ fn open_full_sequence() {
     for i in 1..=100 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -40,8 +40,8 @@ fn open_full_sequence() {
     // Blinds should teleport back to previous tilt when fully opened
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 0,
             completed_state: WindowDressingState {
                 position: 100,
@@ -62,8 +62,8 @@ fn open_full_tiltless_sequence() {
     for i in 1..=100 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -75,8 +75,8 @@ fn open_full_tiltless_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,
@@ -97,8 +97,8 @@ fn open_partial_sequence() {
     for i in -59..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 25,
@@ -111,8 +111,8 @@ fn open_partial_sequence() {
     for i in 26..=75 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -124,8 +124,8 @@ fn open_partial_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 75,
@@ -137,8 +137,8 @@ fn open_partial_sequence() {
     for i in -89..=60 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 75,
@@ -149,8 +149,8 @@ fn open_partial_sequence() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 75,
@@ -171,8 +171,8 @@ fn open_partial_tiltless_sequence() {
     for i in 26..=75 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -184,8 +184,8 @@ fn open_partial_tiltless_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 75,
@@ -206,8 +206,8 @@ fn open_trig_endstop() {
     for i in 1..=80 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -221,8 +221,8 @@ fn open_trig_endstop() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,
@@ -245,8 +245,8 @@ fn trig_endstop_on_open_edge() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,
@@ -269,8 +269,8 @@ fn trig_endstop_on_close_edge() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -291,8 +291,8 @@ fn close_full_sequence() {
     // no tilt when position is 100
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 0,
             completed_state: WindowDressingState {
                 position: 100,
@@ -304,8 +304,8 @@ fn close_full_sequence() {
     for i in -99..=0 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: -i as u8,
@@ -317,8 +317,8 @@ fn close_full_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -330,8 +330,8 @@ fn close_full_sequence() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 0,
@@ -343,8 +343,8 @@ fn close_full_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -365,8 +365,8 @@ fn close_full_tiltless_sequence() {
     for i in -99..=0 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: -i as u8,
@@ -377,8 +377,8 @@ fn close_full_tiltless_sequence() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -399,8 +399,8 @@ fn close_partial_sequence() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 75,
@@ -413,8 +413,8 @@ fn close_partial_sequence() {
     for i in -74..=-25 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: -i as u8,
@@ -426,8 +426,8 @@ fn close_partial_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 25,
@@ -439,8 +439,8 @@ fn close_partial_sequence() {
     for i in -89..=90 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 10,
                 completed_state: WindowDressingState {
                     position: 25,
@@ -452,8 +452,8 @@ fn close_partial_sequence() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 25,
@@ -474,8 +474,8 @@ fn close_partial_tiltless_sequence() {
     for i in -74..=-25 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: -i as u8,
@@ -486,8 +486,8 @@ fn close_partial_tiltless_sequence() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 25,
@@ -508,8 +508,8 @@ fn close_trig_endstop() {
     // no tilt when position is 100
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 0,
             completed_state: WindowDressingState {
                 position: 100,
@@ -521,8 +521,8 @@ fn close_trig_endstop() {
     for i in -99..=-20 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: -i as u8,
@@ -536,8 +536,8 @@ fn close_trig_endstop() {
 
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,

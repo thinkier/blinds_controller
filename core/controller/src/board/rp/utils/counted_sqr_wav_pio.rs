@@ -68,11 +68,6 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
         self.sm.tx().empty()
     }
 
-    pub fn try_push(&mut self, count: u16) -> bool {
-        self.sm.set_enable(true);
-        self.sm.tx().try_push(count as u32)
-    }
-
     /// `delay_cycles` is the number of PIO cycles to stall the state machine in each phase.
     ///
     /// $$
@@ -82,20 +77,23 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     /// Example values:
     /// | Frequency | `delay_cycles` |
     /// |-----------|----------------|
-    /// | 1000 Hz   | 0              |
-    /// |  800 Hz   | 6              |
-    /// |  750 Hz   | 8              |
-    /// |  667 Hz   | 12             |
-    /// |  600 Hz   | 16             |
-    /// |  500 Hz   | 24             |
-    /// |  400 Hz   | 36             |
-    /// |  333 Hz   | 48             |
-    /// |  250 Hz   | 72             |
-    /// |  200 Hz   | 96             |
-    /// |  125 Hz   | 168            |
-    /// |  100 Hz   | 216            |
-    /// |   50 Hz   | 456            |
-    pub fn try_push_modulated(&mut self, count: u16, delay_cycles: u16) -> bool {
+    /// |  1000 Hz  | 0              |
+    /// |   800 Hz  | 6              |
+    /// |   750 Hz  | 8              |
+    /// |   667 Hz  | 12             |
+    /// |   600 Hz  | 16             |
+    /// |   500 Hz  | 24             |
+    /// |   400 Hz  | 36             |
+    /// |   333 Hz  | 48             |
+    /// |   250 Hz  | 72             |
+    /// |   200 Hz  | 96             |
+    /// |   125 Hz  | 168            |
+    /// |   100 Hz  | 216            |
+    /// |  62.5 Hz  | 360            |
+    /// |    50 Hz  | 456            |
+    /// |    25 Hz  | 936            |
+    /// | 0.366 Hz  | 65535          |
+    pub fn try_push(&mut self, count: u16, delay_cycles: u16) -> bool {
         self.sm.set_enable(true);
         self.sm
             .tx()

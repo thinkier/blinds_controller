@@ -1,4 +1,4 @@
-use crate::model::sequencer::{WindowDressingInstruction, WindowDressingState};
+use crate::model::sequencer::{HaltingWindowDressingInstruction, WindowDressingState};
 use crate::{Direction, SensingWindowDressingSequencer, WindowDressingSequencer};
 type HaltingSequencer = crate::model::sequencer::HaltingSequencer<1024>;
 
@@ -49,8 +49,8 @@ fn open_fully() {
     for i in 1..=100 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -61,8 +61,8 @@ fn open_fully() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,
@@ -82,8 +82,8 @@ fn open_partially() {
     for i in 1..=50 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i + 25,
@@ -94,8 +94,8 @@ fn open_partially() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 75,
@@ -116,8 +116,8 @@ fn close_fully() {
         let i = 100 - j;
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -128,8 +128,8 @@ fn close_fully() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
@@ -150,8 +150,8 @@ fn close_partially() {
         let i = 75 - j;
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -162,8 +162,8 @@ fn close_partially() {
     }
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 25,
@@ -183,8 +183,8 @@ fn open_trig_endstop() {
     for i in 1..=50 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Retract,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Retract,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: i,
@@ -197,8 +197,8 @@ fn open_trig_endstop() {
     seq.trig_endstop();
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 100,
@@ -218,8 +218,8 @@ fn close_trig_endstop() {
     for i in 1..=50 {
         assert_eq!(
             seq.get_next_instruction(),
-            Some(WindowDressingInstruction {
-                quality: Direction::Extend,
+            Some(HaltingWindowDressingInstruction {
+                direction: Direction::Extend,
                 quantity: 1000,
                 completed_state: WindowDressingState {
                     position: 100 - i,
@@ -232,8 +232,8 @@ fn close_trig_endstop() {
     seq.trig_endstop();
     assert_eq!(
         seq.get_next_instruction(),
-        Some(WindowDressingInstruction {
-            quality: Direction::Hold,
+        Some(HaltingWindowDressingInstruction {
+            direction: Direction::Hold,
             quantity: 500,
             completed_state: WindowDressingState {
                 position: 0,
