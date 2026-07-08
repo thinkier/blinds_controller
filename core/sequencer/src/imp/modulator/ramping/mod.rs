@@ -2,7 +2,7 @@ use crate::{
     Direction, Ramping, RampingInstruction, SensingWindowDressingSequencer,
     WindowDressingInstruction, WindowDressingSequencer, WindowDressingState,
 };
-use core::mem;
+use core::{cmp, mem};
 
 #[cfg(test)]
 mod tests;
@@ -45,7 +45,12 @@ impl<T: WindowDressingSequencer> WindowDressingSequencer for Ramping<T> {
         let mut buf = mem::replace(&mut self.buffer, None);
 
         if buf.is_none() {
-            buf = self.inner.get_next_instruction_grouped(threshold);
+            buf = self
+                .inner
+                .get_next_instruction_grouped(cmp::max(threshold, 2 << self.ramp_steps_exponent));
+            // The smallest instruction set to come out of this should be equal to
+            // [`ramp_steps_exponent`] - [`ramp_exponent`]
+            // barring limits imposed by inner sequencer
         }
 
         let mut buf = buf?;
@@ -115,5 +120,9 @@ impl WindowDressingInstruction for RampingInstruction {
 
     fn get_quantity_mut(&mut self) -> &mut u32 {
         &mut self.quantity
+    }
+
+    fn get_denominator(&self) -> u16 {
+        1 << self.ramping_denominator_exponent
     }
 }

@@ -8,16 +8,6 @@ pub enum Direction {
     Hold,
 }
 
-impl Direction {
-    pub fn reverse(self) -> Self {
-        match self {
-            Direction::Extend => Direction::Retract,
-            Direction::Retract => Direction::Extend,
-            Direction::Hold => Direction::Hold,
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct HaltingSequencer<const N: usize> {
     pub(crate) full_cycle_quantity: u32,
@@ -50,6 +40,9 @@ pub trait WindowDressingInstruction {
     fn get_direction(&self) -> &Direction;
     fn get_quantity(&self) -> &u32;
     fn get_quantity_mut(&mut self) -> &mut u32;
+    fn get_denominator(&self) -> u16 {
+        1
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]

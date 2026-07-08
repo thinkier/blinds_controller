@@ -359,7 +359,7 @@ where
                 // - 15 minutes at 1kHz steps
                 // - It is also further clamped by [`get_next_instruction_grouped(LIMIT)`]
                 let success = board
-                    .add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY)
+                    .add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY / instr.get_denominator())
                     .unwrap_or(false);
 
                 if !success {
