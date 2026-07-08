@@ -36,6 +36,8 @@ impl<T: SensingWindowDressingSequencer> SensingWindowDressingSequencer for Rampi
 
 impl<T: WindowDressingSequencer> WindowDressingSequencer for Ramping<T> {
     type Instruction = RampingInstruction;
+    // TODO Please convert this to outputting a vector,
+    // the timings are so bad on the controller side it will not be a continuous acceleration
 
     fn get_next_instruction(&mut self) -> Option<Self::Instruction> {
         self.get_next_instruction_grouped(0)

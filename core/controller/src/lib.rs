@@ -46,7 +46,7 @@ const fn get_driver_count() -> usize {
 
 pub const FREQUENCY: u16 = 1000;
 pub const RAMP_EXPONENT: u16 = 3;
-pub const RAMP_STEPS_EXPONENT: u16 = 6;
+pub const RAMP_STEPS_EXPONENT: u16 = 4;
 
 struct RunState<const N: usize, I> {
     #[cfg(feature = "brownout-protection")]

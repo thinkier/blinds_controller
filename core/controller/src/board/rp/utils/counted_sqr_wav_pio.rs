@@ -1,6 +1,10 @@
+use crate::FREQUENCY;
+use defmt::debug;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::Level;
-use embassy_rp::pio::{Common, Config, Direction, Instance, LoadedProgram, PioPin, StateMachine};
+use embassy_rp::pio::{
+    Common, Config, Direction, FifoJoin, Instance, LoadedProgram, PioPin, StateMachine,
+};
 use embassy_rp::Peri;
 use fixed::traits::ToFixed;
 use pio::pio_file;
@@ -25,6 +29,8 @@ impl<'a, PIO: Instance> CountedSqrWavProgram<'a, PIO> {
 
         let prg = common.load_program(&prg.program);
 
+        debug!("System frequency is {}MHz", clk_sys_freq() / 1_000_000);
+
         Self { prg }
     }
 }
@@ -39,15 +45,19 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
         sm: &'a mut StateMachine<'a, PIO, SM>,
         pin: Peri<'a, impl PioPin + 'a>,
         program: &'a CountedSqrWavProgram<'a, PIO>,
-        frequency: u16,
     ) -> Self {
         let pin = pio.make_pio_pin(pin);
         sm.set_pins(Level::Low, &[&pin]);
         sm.set_pin_dirs(Direction::Out, &[&pin]);
 
         let mut cfg = Config::default();
-        cfg.use_program(&program.prg, &[&pin]);
-        cfg.clock_divider = (clk_sys_freq() / (frequency as u32 * 24)).to_fixed();
+
+        cfg.fifo_join = FifoJoin::TxOnly;
+
+        cfg.set_set_pins(&[&pin]);
+        cfg.use_program(&program.prg, &[]);
+
+        cfg.clock_divider = (clk_sys_freq() / (FREQUENCY as u32 * 24)).to_fixed();
 
         sm.set_config(&cfg);
 
@@ -95,8 +105,14 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     /// | 0.366 Hz  | 65535          |
     pub fn try_push(&mut self, count: u16, delay_cycles: u16) -> bool {
         self.sm.set_enable(true);
-        self.sm
-            .tx()
-            .try_push(((delay_cycles as u32) << 16) | (count as u32))
+
+        let value = ((delay_cycles as u32) << 16) | (count as u32);
+
+        debug!(
+            "Pushing {} steps at delay {} - code is 0x{:08x}",
+            count, delay_cycles, value
+        );
+
+        self.sm.tx().try_push(value)
     }
 }

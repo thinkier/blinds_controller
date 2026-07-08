@@ -27,8 +27,6 @@ use embassy_usb::UsbDevice;
 use static_cell::StaticCell;
 use thermistor::NtcThermistor;
 
-pub const FREQUENCY: u16 = 1000;
-
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
     UART0_IRQ => BufferedInterruptHandler<UART0>;
@@ -77,14 +75,12 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
             &mut pio.sm0,
             p.PIN_11.reborrow(),
             prog,
-            FREQUENCY,
         );
         let pio0_1 = CountedSqrWav::new(
             &mut pio.common,
             &mut pio.sm1,
             p.PIN_19.reborrow(),
             prog,
-            FREQUENCY,
         );
 
         let pio0_2 = CountedSqrWav::new(
@@ -92,7 +88,6 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
             &mut pio.sm2,
             p.PIN_6.reborrow(),
             prog,
-            FREQUENCY,
         );
 
         let pio0_3 = CountedSqrWav::new(
@@ -100,7 +95,6 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
             &mut pio.sm3,
             p.PIN_14.reborrow(),
             prog,
-            FREQUENCY,
         );
 
         let mut uart_cfg = uart::Config::default();
