@@ -291,10 +291,6 @@ impl WindowDressingInstruction for HaltingWindowDressingInstruction {
     fn get_quantity(&self) -> &u32 {
         &self.quantity
     }
-
-    fn get_quantity_mut(&mut self) -> &mut u32 {
-        &mut self.quantity
-    }
 }
 
 impl PartialOrd for WindowDressingState {

@@ -20,7 +20,7 @@ use embassy_time::{Duration, Instant, Timer};
 use heapless::Vec;
 use portable_atomic::AtomicU16;
 use sequencer::{
-    Direction, Ramping, RampingInstruction, WindowDressingInstruction, WindowDressingSequencer,
+    Direction, HaltingWindowDressingInstruction, WindowDressingInstruction, WindowDressingSequencer,
 };
 use sequencer::{HaltingSequencer, SensingWindowDressingSequencer};
 use static_cell::StaticCell;
@@ -31,8 +31,7 @@ pub const DRIVERS: usize = get_driver_count();
 const BROWNOUT_PROTECTION: Duration = Duration::from_secs(2);
 static REVERSALS: AtomicU16 = AtomicU16::new(0);
 static STOPS: AtomicU16 = AtomicU16::new(0);
-static SEQUENCERS: StaticCell<[Option<Ramping<HaltingSequencer<1024>>>; DRIVERS]> =
-    StaticCell::new();
+static SEQUENCERS: StaticCell<[Option<HaltingSequencer<1024>>; DRIVERS]> = StaticCell::new();
 
 const fn get_driver_count() -> usize {
     cfg_select! {
@@ -45,8 +44,6 @@ const fn get_driver_count() -> usize {
 }
 
 pub const FREQUENCY: u16 = 1000;
-pub const RAMP_EXPONENT: u16 = 3;
-pub const RAMP_STEPS_EXPONENT: u16 = 4;
 
 struct RunState<const N: usize, I> {
     #[cfg(feature = "brownout-protection")]
@@ -54,7 +51,6 @@ struct RunState<const N: usize, I> {
     next_buf: [Option<I>; N],
     next_resume: [Instant; N],
     cur_direction: [Direction; N],
-    ramp_exponent: [u16; N],
 }
 
 impl<const N: usize, I> Default for RunState<N, I> {
@@ -65,7 +61,6 @@ impl<const N: usize, I> Default for RunState<N, I> {
             next_buf: [const { None }; N],
             next_resume: [Instant::now(); N],
             cur_direction: [Direction::Hold; N],
-            ramp_exponent: [0; N],
         }
     }
 }
@@ -93,7 +88,7 @@ where
             feature = "driver-qty-10" => 10,
         }],
     );
-    let mut state = RunState::<DRIVERS, RampingInstruction>::default();
+    let mut state = RunState::<DRIVERS, HaltingWindowDressingInstruction>::default();
 
     loop {
         board.watchdog_feed();
@@ -148,8 +143,7 @@ where
                         #[cfg(feature = "stallguard")]
                         sgthrs,
                     } => {
-                        let seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
-                        let mut seq = Ramping::new(seq, RAMP_EXPONENT, RAMP_STEPS_EXPONENT);
+                        let mut seq = HaltingSequencer::new(full_cycle_steps, full_tilt_steps);
 
                         if let Some(init) = init {
                             seq.load_state(&init);
@@ -358,13 +352,8 @@ where
                 // Downcast is safe unless it takes 6e6 steps to open the blinds fully
                 // - 15 minutes at 1kHz steps
                 // - It is also further clamped by [`get_next_instruction_grouped(LIMIT)`]
-                let success = board
-                    .add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY / instr.get_denominator())
-                    .unwrap_or(false);
 
-                if !success {
-                    let _ = mem::replace(&mut state.next_buf[i], Some(instr));
-                }
+                let _ = board.add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY);
             } else if board.get_stopped(i) && state.next_resume[i] < now {
                 state.cur_direction[i] = *instr.get_direction();
 
@@ -388,7 +377,6 @@ where
                         board.set_direction(i, (REVERSALS.load(Ordering::Acquire) >> i) & 0b1 == 0)
                     }
                 }
-                state.ramp_exponent[i] = RAMP_EXPONENT;
                 // Pick up the moving the next cycle
                 let _ = mem::replace(&mut state.next_buf[i], Some(instr));
             } else {

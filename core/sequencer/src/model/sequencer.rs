@@ -39,10 +39,6 @@ pub trait SensingWindowDressingSequencer: WindowDressingSequencer {
 pub trait WindowDressingInstruction {
     fn get_direction(&self) -> &Direction;
     fn get_quantity(&self) -> &u32;
-    fn get_quantity_mut(&mut self) -> &mut u32;
-    fn get_denominator(&self) -> u16 {
-        1
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]

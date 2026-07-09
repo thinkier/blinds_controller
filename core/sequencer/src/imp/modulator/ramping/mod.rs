@@ -1,19 +1,21 @@
 use crate::{
-    Direction, Ramping, RampingInstruction, SensingWindowDressingSequencer,
+    Direction, RampedInstruction, Ramping, RampingInstruction, SensingWindowDressingSequencer,
     WindowDressingInstruction, WindowDressingSequencer, WindowDressingState,
 };
-use core::{cmp, mem};
+use core::ops::Deref;
+use heapless::Vec;
 
 #[cfg(test)]
 mod tests;
 
 impl<T: WindowDressingSequencer> Ramping<T> {
     pub fn new(inner: T, ramp_exponent: u16, ramp_steps_exponent: u16) -> Self {
+        assert!(ramp_exponent < 7);  // pico simplex fifo depth is 8, minus 1 for tail
+        assert!(ramp_steps_exponent >= ramp_exponent);
+
         Self {
             inner,
-            buffer: None,
             last_direction: Direction::Hold,
-            last_count: ramp_exponent,
             ramp_exponent,
             ramp_steps_exponent,
         }
@@ -35,55 +37,56 @@ impl<T: SensingWindowDressingSequencer> SensingWindowDressingSequencer for Rampi
 }
 
 impl<T: WindowDressingSequencer> WindowDressingSequencer for Ramping<T> {
-    type Instruction = RampingInstruction;
-    // TODO Please convert this to outputting a vector,
-    // the timings are so bad on the controller side it will not be a continuous acceleration
+    type Instruction = RampingInstruction<T::Instruction>;
 
     fn get_next_instruction(&mut self) -> Option<Self::Instruction> {
         self.get_next_instruction_grouped(0)
     }
 
     fn get_next_instruction_grouped(&mut self, threshold: u32) -> Option<Self::Instruction> {
-        let mut buf = mem::replace(&mut self.buffer, None);
+        let take = (2 << self.ramp_steps_exponent) - 1;
+        let inner = self.inner.get_next_instruction_grouped(threshold + take)?;
+        let mut quantity = *inner.get_quantity();
 
-        if buf.is_none() {
-            buf = self
-                .inner
-                .get_next_instruction_grouped(cmp::max(threshold, 2 << self.ramp_steps_exponent));
-            // The smallest instruction set to come out of this should be equal to
-            // [`ramp_steps_exponent`] - [`ramp_exponent`]
-            // barring limits imposed by inner sequencer
+        if self.last_direction == *inner.get_direction() {
+            return Some(RampingInstruction::Ordinary(inner));
+        } else {
+            self.last_direction = *inner.get_direction();
+
+            if self.last_direction == Direction::Hold {
+                return Some(RampingInstruction::Ordinary(inner));
+            }
         }
 
-        let mut buf = buf?;
+        let mut ramped = Vec::new();
 
-        if self.last_direction != *buf.get_direction() {
-            self.last_count = self.ramp_exponent;
-            self.last_direction = *buf.get_direction();
-        }
+        for i in 0..self.ramp_exponent {
+            let d = self.ramp_exponent - i;
 
-        let direction = *buf.get_direction();
-        let mut quantity = *buf.get_quantity();
-        let mut ramping_denominator_exponent = 0;
+            let mut inter_quantity = 1 << (self.ramp_steps_exponent - i);
 
-        if self.last_count > 0 {
-            ramping_denominator_exponent = self.last_count;
-            let take_exp = self.ramp_steps_exponent - (self.ramp_exponent - self.last_count);
-
-            if quantity > 1 << take_exp {
-                quantity = 1 << take_exp;
-                *buf.get_quantity_mut() -= quantity;
-                let _ = mem::replace(&mut self.buffer, Some(buf));
+            if inter_quantity > quantity {
+                inter_quantity = quantity;
             }
 
-            self.last_count -= 1;
+            quantity -= inter_quantity;
+
+            let _ = ramped.push(RampedInstruction {
+                quantity: inter_quantity,
+                ramping_denominator_exponent: d,
+            });
+
+            if quantity == 0 {
+                return Some(RampingInstruction::Ramped { inner, ramped });
+            }
         }
 
-        Some(Self::Instruction {
-            direction,
+        let _ = ramped.push(RampedInstruction {
             quantity,
-            ramping_denominator_exponent,
-        })
+            ramping_denominator_exponent: 0,
+        });
+
+        Some(RampingInstruction::Ramped { inner, ramped })
     }
 
     fn get_current_state(&self) -> &WindowDressingState {
@@ -111,20 +114,26 @@ impl<T: WindowDressingSequencer> WindowDressingSequencer for Ramping<T> {
     }
 }
 
-impl WindowDressingInstruction for RampingInstruction {
+impl<T> Deref for RampingInstruction<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            RampingInstruction::Ordinary(data) => data,
+            RampingInstruction::Ramped { inner, .. } => &inner,
+        }
+    }
+}
+
+impl<T> WindowDressingInstruction for RampingInstruction<T>
+where
+    T: WindowDressingInstruction,
+{
     fn get_direction(&self) -> &Direction {
-        &self.direction
+        self.deref().get_direction()
     }
 
     fn get_quantity(&self) -> &u32 {
-        &self.quantity
-    }
-
-    fn get_quantity_mut(&mut self) -> &mut u32 {
-        &mut self.quantity
-    }
-
-    fn get_denominator(&self) -> u16 {
-        1 << self.ramping_denominator_exponent
+        self.deref().get_quantity()
     }
 }

@@ -58,6 +58,7 @@ pub struct BttSkrPicoV1_0 {
     thermistor: NtcThermistor,
     adc: Adc<'static, adc::Blocking>,
     thermistor_pin: adc::Channel<'static>,
+    last_thermal: Instant,
 }
 
 impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
@@ -70,32 +71,12 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
         let pio = PIO0.init(Pio::new(p.PIO0.reborrow(), Irqs));
         let prog = PROG.init(CountedSqrWavProgram::new(&mut pio.common));
 
-        let pio0_0 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm0,
-            p.PIN_11.reborrow(),
-            prog,
-        );
-        let pio0_1 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm1,
-            p.PIN_19.reborrow(),
-            prog,
-        );
+        let pio0_0 = CountedSqrWav::new(&mut pio.common, &mut pio.sm0, p.PIN_11.reborrow(), prog);
+        let pio0_1 = CountedSqrWav::new(&mut pio.common, &mut pio.sm1, p.PIN_19.reborrow(), prog);
 
-        let pio0_2 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm2,
-            p.PIN_6.reborrow(),
-            prog,
-        );
+        let pio0_2 = CountedSqrWav::new(&mut pio.common, &mut pio.sm2, p.PIN_6.reborrow(), prog);
 
-        let pio0_3 = CountedSqrWav::new(
-            &mut pio.common,
-            &mut pio.sm3,
-            p.PIN_14.reborrow(),
-            prog,
-        );
+        let pio0_3 = CountedSqrWav::new(&mut pio.common, &mut pio.sm3, p.PIN_14.reborrow(), prog);
 
         let mut uart_cfg = uart::Config::default();
         uart_cfg.baudrate = 115200;
@@ -179,6 +160,7 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
                 thermistor: thermistor::ERT_J1VGXXA, // ERT-J1VG103FA from PBLS-1.0/27 EDLC (Supercapacitor)
                 adc: Adc::new_blocking(p.ADC.reborrow(), adc::Config::default()),
                 thermistor_pin: adc::Channel::new_pin(p.PIN_27.reborrow(), Pull::None),
+                last_thermal: Instant::now(),
             },
             pio0_0: Some(pio0_0),
             pio0_1: Some(pio0_1),
@@ -188,10 +170,16 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
     }
 }
 
+const THERMAL_REPORT_THRESHOLD: Duration = Duration::from_secs(60);
+
 impl ControlLoopInvoke for BttSkrPicoV1_0 {
     async fn invoke(&mut self, _spawner: &mut Spawner) {
-        let temp = self.measure_temp();
-        debug!("Thermistor is at {}C", temp);
+        if Instant::now().duration_since(self.last_thermal) > THERMAL_REPORT_THRESHOLD {
+            self.last_thermal += THERMAL_REPORT_THRESHOLD;
+
+            let temp = self.measure_temp();
+            debug!("Thermistor is at {}C", temp);
+        }
     }
 }
 
