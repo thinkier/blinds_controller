@@ -157,8 +157,10 @@ where
         let packet = serde_json_core::to_slice(resp, &mut outgoing_packet_buf)
             .map_err(|e| SerialRpcError::EncodeError(e))?;
 
+        outgoing_packet_buf[packet] = b'\r';
+
         self.serial
-            .write_all(&outgoing_packet_buf[0..=packet])
+            .write_all(&outgoing_packet_buf[0..packet + 2])
             .await?;
 
         Ok(())
@@ -178,7 +180,10 @@ where
 
             i += j + 1;
         }
-        self.serial.write_all(&outgoing_packet_buf[0..i]).await?;
+
+        outgoing_packet_buf[i - 1] = b'\r';
+
+        self.serial.write_all(&outgoing_packet_buf[0..=i]).await?;
 
         Ok(())
     }
