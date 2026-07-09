@@ -28,7 +28,7 @@ thermistor = { path = "../core/thermistor" }
 path = "../core/controller"
 features = ["rp", "thumbv6m", # No atomics on RP2040
     "driver-qty-4",
-    "brownout-protection",
+#    "brownout-protection",
     "tmc2209_async", "uart_driver_shared_bus", "stallguard"
 ]
 

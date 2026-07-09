@@ -190,8 +190,8 @@ impl BoardInitialize for Board<'static, 4, BufferedUart, HD, BttSkrPicoV1_0> {
 
 impl ControlLoopInvoke for BttSkrPicoV1_0 {
     async fn invoke(&mut self, _spawner: &mut Spawner) {
-        let temp = self.measure_temp();
-        debug!("Thermistor is at {}C", temp);
+        // let temp = self.measure_temp();
+        // debug!("Thermistor is at {}C", temp);
     }
 }
 
