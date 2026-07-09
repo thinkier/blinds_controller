@@ -21,7 +21,7 @@ use embassy_rp::usb::Driver;
 use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
 use embassy_rp::watchdog::Watchdog;
 use embassy_rp::Peripherals;
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 #[cfg(feature = "host-usb")]
 use embassy_usb::UsbDevice;
 use static_cell::StaticCell;

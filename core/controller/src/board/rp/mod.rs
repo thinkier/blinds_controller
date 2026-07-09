@@ -109,7 +109,7 @@ impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
 
     fn set_enabled(&mut self, channel: usize, enabled: bool) {
         self.drivers[channel]
-            .dir
+            .enable
             .set_level(if enabled { Level::Low } else { Level::High });
     }
 
