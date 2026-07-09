@@ -181,10 +181,12 @@ where
             i += j + 1;
         }
 
+        if i == 0 {
+            return Ok(());
+        }
+
         outgoing_packet_buf[i - 1] = b'\r';
-
         self.serial.write_all(&outgoing_packet_buf[0..=i]).await?;
-
         Ok(())
     }
 }
