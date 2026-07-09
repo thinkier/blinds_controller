@@ -6,7 +6,7 @@ use crate::board::{
 use crate::rpc::SerialRpcHandle;
 #[cfg(feature = "host-usb")]
 use crate::rpc::UsbRpcHandle;
-use crate::{DRIVERS, FREQUENCY, STOPS};
+use crate::{DRIVERS, STOPS};
 use core::sync::atomic::Ordering;
 use defmt::*;
 use embassy_executor::Spawner;
@@ -155,22 +155,16 @@ impl<'a, const N: usize, D, H, T> StepStickHost for Board<'a, N, D, H, T> {
         }
     }
 
-    fn add_steps_ramping(&mut self, channel: usize, steps: u16, freq: u16) -> Option<bool> {
+    fn add_steps(&mut self, channel: usize, steps: u32) -> Option<bool> {
         if steps == 0 {
             return None;
         }
 
-        let dead_time = if freq >= FREQUENCY {
-            0
-        } else {
-            ((FREQUENCY * 24) / freq) - 24
-        };
-
         match channel {
-            0 => self.pio0_0.as_mut().map(|p| p.try_push(steps, dead_time)),
-            1 => self.pio0_1.as_mut().map(|p| p.try_push(steps, dead_time)),
-            2 => self.pio0_2.as_mut().map(|p| p.try_push(steps, dead_time)),
-            3 => self.pio0_3.as_mut().map(|p| p.try_push(steps, dead_time)),
+            0 => self.pio0_0.as_mut().map(|p| p.try_push(steps)),
+            1 => self.pio0_1.as_mut().map(|p| p.try_push(steps)),
+            2 => self.pio0_2.as_mut().map(|p| p.try_push(steps)),
+            3 => self.pio0_3.as_mut().map(|p| p.try_push(steps)),
             #[cfg(any(feature = "driver-qty-5", feature = "driver-qty-8"))]
             4 => self.pio1_0.as_mut().map(|p| p.try_push(steps, dead_time)),
             #[cfg(feature = "driver-qty-8")]

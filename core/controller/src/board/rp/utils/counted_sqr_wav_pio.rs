@@ -103,16 +103,8 @@ impl<'a, PIO: Instance, const SM: usize> CountedSqrWav<'a, PIO, SM> {
     /// |    50 Hz  | 456            |
     /// |    25 Hz  | 936            |
     /// | 0.366 Hz  | 65535          |
-    pub fn try_push(&mut self, count: u16, delay_cycles: u16) -> bool {
+    pub fn try_push(&mut self, value: u32) -> bool {
         self.sm.set_enable(true);
-
-        let value = ((delay_cycles as u32) << 16) | (count as u32);
-
-        debug!(
-            "Pushing {} steps at delay {} - code is 0x{:08x}",
-            count, delay_cycles, value
-        );
-
         self.sm.tx().try_push(value)
     }
 }

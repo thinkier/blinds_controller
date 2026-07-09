@@ -353,7 +353,7 @@ where
                 // - 15 minutes at 1kHz steps
                 // - It is also further clamped by [`get_next_instruction_grouped(LIMIT)`]
 
-                let _ = board.add_steps_ramping(i, *instr.get_quantity() as u16, FREQUENCY);
+                let _ = board.add_steps(i, *instr.get_quantity());
             } else if board.get_stopped(i) && state.next_resume[i] < now {
                 state.cur_direction[i] = *instr.get_direction();
 
